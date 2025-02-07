@@ -10,5 +10,9 @@
         "--line-length",
         "200",
         "-a"
-    ]
+    ],
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.venv": true
+    }
 }

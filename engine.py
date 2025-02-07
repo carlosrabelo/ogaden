@@ -11,3 +11,10 @@ if __name__ == "__main__":
     broker = Broker(config)
 
     trader = Trader(broker)
+
+    trader.initialize()
+
+    while True:
+        trader.execute_cycle()
+        trader.display_status()
+        trader.wait()

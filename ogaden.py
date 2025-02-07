@@ -12,6 +12,7 @@ if __name__ == "__main__":
 
     trader = Trader(broker)
 
-    trader.setup()
-    trader.update()
-    trader.display()
+    trader.initialize()
+    trader.execute_cycle()
+    trader.update_state()
+    trader.display_status()
