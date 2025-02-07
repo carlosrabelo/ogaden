@@ -1,2 +1,1 @@
-# ogaden
-Ogaden - Simple Trading Robot
+# Ogaden - Simple Trading Robot
