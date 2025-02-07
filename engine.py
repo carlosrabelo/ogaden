@@ -11,7 +11,3 @@ if __name__ == "__main__":
     broker = Broker(config)
 
     trader = Trader(broker)
-
-    trader.setup()
-    trader.update()
-    trader.display()
