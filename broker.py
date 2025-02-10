@@ -1,45 +1,46 @@
-import pandas as pd
-
 from binance.client import Client
 
-from config import Config
+import pandas as pd
+
+from loader import Loader
 
 
-class Broker:
+class Broker(Loader):
 
-    def __init__(self, config: Config):
+    def __init__(self):
+
+        super().__init__()
+
+        self.binance = Client(self.API_KEY, self.API_SECRET)
 
         self._base_balance = 0.0
         self._quote_balance = 0.0
 
         self._current_price = 0.0
 
-        self._market_data = pd.DataFrame()
+        self.data = pd.DataFrame()
 
-        self.config = config
-
-        self.binance = Client(config.API_KEY, config.API_SECRET)
+    # region
 
     @property
     def BASE_BALANCE(self):
-        if self.config.SANDBOX:
+        if self.SANDBOX:
             return self._base_balance
-        return self.fetch_balance(self.config.BASE_ASSET)
+        return self.fetch_balance(self.BASE_ASSET)
 
     @property
     def QUOTE_BALANCE(self):
-        if self.config.SANDBOX:
+        if self.SANDBOX:
             return self._quote_balance
-        return self.fetch_balance(self.config.QUOTE_ASSET)
+        return self.fetch_balance(self.QUOTE_ASSET)
 
     @property
     def CURRENT_PRICE(self):
-        self._current_price = self.fetch_current_price(self.config.SYMBOL)
         return self._current_price
 
-    @property
-    def DATA(self):
-        return self._market_data
+    # endregion
+
+    # region
 
     @BASE_BALANCE.setter
     def BASE_BALANCE(self, value):
@@ -53,83 +54,7 @@ class Broker:
     def CURRENT_PRICE(self, value):
         self._current_price = value
 
-    @DATA.setter
-    def DATA(self, value):
-        self._market_data = value
-
-    def execute_buy(self) -> bool:
-
-        available_quote = self.QUOTE_BALANCE
-
-        min_notional = self.fetch_minimum_notional(self.config.SYMBOL)
-
-        if available_quote < min_notional:
-            print(f"Insufficient quote balance: {available_quote} is below the minimum notional value of {min_notional}.")
-            return False
-
-        current_price = self.CURRENT_PRICE
-
-        calculated_quantity = available_quote / current_price
-
-        step_size = self.fetch_step_size(self.config.SYMBOL)
-
-        adjusted_quantity = (calculated_quantity // step_size) * step_size
-
-        minimum_quantity = self.fetch_minimum_quantity(self.config.SYMBOL)
-
-        if adjusted_quantity < minimum_quantity:
-            print(f"Calculated quantity ({adjusted_quantity}) is below the minimum allowed ({minimum_quantity}).")
-            return False
-
-        if self.config.SANDBOX:
-            total_cost = adjusted_quantity * current_price
-            fee = adjusted_quantity * 0.001
-
-            self.BASE_BALANCE += (adjusted_quantity - fee)
-            self.QUOTE_BALANCE -= total_cost
-
-        else:
-            self.binance.order_market_buy(symbol=self.config.SYMBOL, quantity=adjusted_quantity)
-
-        print()
-        print(f"Executed purchase: {adjusted_quantity} {self.config.BASE_ASSET} at {current_price}")
-
-        return True
-
-    def execute_sell(self) -> bool:
-
-        available_base = self.BASE_BALANCE
-
-        minimum_quantity = self.fetch_minimum_quantity(self.config.SYMBOL)
-
-        if available_base < minimum_quantity:
-            print(f"Insufficient base balance: {available_base} is below the minimum allowed quantity of {minimum_quantity}.")
-            return False
-
-        step_size = self.fetch_step_size(self.config.SYMBOL)
-
-        calculated_quantity = (available_base // step_size) * step_size
-
-        if calculated_quantity < minimum_quantity:
-            print(f"Calculated quantity ({calculated_quantity}) is below the minimum allowed ({minimum_quantity}).")
-            return False
-
-        current_price = self.CURRENT_PRICE
-
-        if self.config.SANDBOX:
-            total_sale_value = calculated_quantity * current_price
-            fee = total_sale_value * 0.001
-
-            self.BASE_BALANCE -= calculated_quantity
-            self.QUOTE_BALANCE += (total_sale_value - fee)
-
-        else:
-            self.binance.order_market_sell(symbol=self.config.SYMBOL, quantity=calculated_quantity)
-
-        print()
-        print(f"Executed sell: {calculated_quantity} {self.config.BASE_ASSET} at {current_price}")
-
-        return True
+    # endregion
 
     def fetch_balance(self, asset) -> float:
 
@@ -158,15 +83,6 @@ class Broker:
             print(f"Error getting minimum notional for {symbol}: {e}")
             return float("0.0")
 
-    def fetch_minimum_quantity(self, symbol) -> float:
-
-        try:
-            symbol_info = self.binance.get_symbol_info(symbol)
-            return float(next(f["minQty"] for f in symbol_info["filters"] if f["filterType"] == "LOT_SIZE"))
-        except Exception as e:
-            print(f"Error getting minimum quantity for {symbol}: {e}")
-            return 0.0
-
     def fetch_step_size(self, symbol) -> float:
 
         try:
@@ -176,10 +92,20 @@ class Broker:
             print(f"Error getting step size for {symbol}: {e}")
             return 0.0
 
-    def fetch_market_data(self):
+    def fetch_minimum_quantity(self, symbol) -> float:
 
         try:
-            dict = self.binance.get_klines(symbol=self.config.SYMBOL, interval=self.config.INTERVAL, limit=self.config.LIMIT)
+            symbol_info = self.binance.get_symbol_info(symbol)
+            return float(next(f["minQty"] for f in symbol_info["filters"] if f["filterType"] == "LOT_SIZE"))
+        except Exception as e:
+            print(f"Error getting minimum quantity for {symbol}: {e}")
+            return 0.0
+
+    def fetch_data(self):
+
+        try:
+
+            dict = self.binance.get_klines(symbol=self.SYMBOL, interval=self.INTERVAL, limit=self.LIMIT)
 
             if not dict:
                 raise ValueError("No klines data found for the specified SYMBOL and interval.")
@@ -206,38 +132,39 @@ class Broker:
 
             df["close"] = df["close"].astype(float)
 
-            df["close_time"] = pd.to_datetime(df["close_time"], unit="ms").dt.tz_localize("UTC").dt.tz_convert(self.config.TIMEZONE)
+            df["close_time"] = pd.to_datetime(df["close_time"], unit="ms").dt.tz_localize("UTC").dt.tz_convert(self.TIMEZONE)
 
-            self._market_data = df
+            self.data = df
 
         except Exception as e:
-            self._market_data = pd.DataFrame()
+
+            self.data = pd.DataFrame()
 
             print(f"Error fetching candle data: {e}")
 
     def calculate_sma(self):
 
-        self._market_data["fast_sma"] = self._market_data["close"].rolling(window=self.config.FAST_SMA).mean()
-        self._market_data["slow_sma"] = self._market_data["close"].rolling(window=self.config.SLOW_SMA).mean()
+        self.data["fast_sma"] = self.data["close"].rolling(window=self.FAST_SMA).mean()
+        self.data["slow_sma"] = self.data["close"].rolling(window=self.SLOW_SMA).mean()
 
-        self._market_data["prev_fast_sma"] = self._market_data["fast_sma"].shift(1)
-        self._market_data["prev_slow_sma"] = self._market_data["slow_sma"].shift(1)
+        self.data["prev_fast_sma"] = self.data["fast_sma"].shift(1)
+        self.data["prev_slow_sma"] = self.data["slow_sma"].shift(1)
 
     def calculate_rsi(self):
 
-        delta = self._market_data["close"].diff()
+        delta = self.data["close"].diff()
 
         gain = delta.where(delta > 0.0, 0.0)
         loss = -delta.where(delta < 0.0, 0.0)
 
-        avg_gain = gain.rolling(window=self.config.RSI_PERIOD).mean()
-        avg_loss = loss.rolling(window=self.config.RSI_PERIOD).mean()
+        avg_gain = gain.rolling(window=self.RSI_PERIOD).mean()
+        avg_loss = loss.rolling(window=self.RSI_PERIOD).mean()
 
         rs = avg_gain / avg_loss
 
         rsi = 100.0 - (100.0 / (1.0 + rs))
 
-        self._market_data["rsi"] = rsi
+        self.data["rsi"] = rsi
 
     def rsi_signal(self):
 
@@ -248,8 +175,8 @@ class Broker:
 
             rsi = row["rsi"]
 
-            rsi_buy_threshold = self.config.RSI_BUY_THRESHOLD
-            rsi_sell_threshold = self.config.RSI_SELL_THRESHOLD
+            rsi_buy_threshold = self.RSI_BUY_THRESHOLD
+            rsi_sell_threshold = self.RSI_SELL_THRESHOLD
 
             if rsi < rsi_buy_threshold:
                 return "BUY"
@@ -258,4 +185,78 @@ class Broker:
             else:
                 return "HOLD"
 
-        self._market_data["signal_rsi"] = self._market_data.apply(get_signal, axis=1)
+        self.data["signal_rsi"] = self.data.apply(get_signal, axis=1)
+
+    def execute_buy(self) -> bool:
+
+        available_quote = self.QUOTE_BALANCE
+
+        min_notional = self.fetch_minimum_notional(self.SYMBOL)
+
+        if available_quote < min_notional:
+            print(f"Insufficient quote balance: {available_quote} is below the minimum notional value of {min_notional}.")
+            return False
+
+        current_price = self.CURRENT_PRICE
+
+        calculated_quantity = available_quote / current_price
+
+        step_size = self.fetch_step_size(self.SYMBOL)
+
+        calculated_quantity = (calculated_quantity // step_size) * step_size
+
+        minimum_quantity = self.fetch_minimum_quantity(self.SYMBOL)
+
+        if calculated_quantity < minimum_quantity:
+            print(f"Calculated quantity ({calculated_quantity}) is below the minimum allowed ({minimum_quantity}).")
+            return False
+
+        if self.SANDBOX:
+            total_cost = calculated_quantity * current_price
+            fee = total_cost * 0.001
+
+            self.BASE_BALANCE += calculated_quantity
+            self.QUOTE_BALANCE -= total_cost - fee
+
+        else:
+            self.binance.order_market_buy(symbol=self.SYMBOL, quantity=calculated_quantity)
+
+        print()
+        print(f"Executed purchase: {calculated_quantity:.6f} {self.BASE_ASSET} at {current_price}")
+
+        return True
+
+    def execute_sell(self) -> bool:
+
+        available_base = self.BASE_BALANCE
+
+        minimum_quantity = self.fetch_minimum_quantity(self.SYMBOL)
+
+        if available_base < minimum_quantity:
+            print(f"Insufficient base balance: {available_base} is below the minimum allowed quantity of {minimum_quantity}.")
+            return False
+
+        step_size = self.fetch_step_size(self.SYMBOL)
+
+        calculated_quantity = (available_base // step_size) * step_size
+
+        if calculated_quantity < minimum_quantity:
+            print(f"Calculated quantity ({calculated_quantity}) is below the minimum allowed ({minimum_quantity}).")
+            return False
+
+        current_price = self.CURRENT_PRICE
+
+        if self.SANDBOX:
+            total_sale_value = calculated_quantity * current_price
+            fee = total_sale_value * 0.001
+
+            self.BASE_BALANCE -= calculated_quantity
+            self.QUOTE_BALANCE += total_sale_value - fee
+
+        else:
+            self.binance.order_market_sell(symbol=self.SYMBOL, quantity=calculated_quantity)
+
+        print()
+        print(f"Executed sell: {calculated_quantity:.6f} {self.BASE_ASSET} at {current_price}")
+
+        return True
