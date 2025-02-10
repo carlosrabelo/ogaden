@@ -16,6 +16,10 @@ class Broker(Loader):
         self._base_balance = 0.0
         self._quote_balance = 0.0
 
+        self._min_notional = 0.0
+        self._step_size = 0.0
+        self._min_quantity = 0.0
+
         self._current_price = 0.0
 
         self.data = pd.DataFrame()
@@ -24,19 +28,27 @@ class Broker(Loader):
 
     @property
     def BASE_BALANCE(self):
-        if self.SANDBOX:
-            return self._base_balance
-        return self.fetch_balance(self.BASE_ASSET)
+        return self._base_balance
 
     @property
     def QUOTE_BALANCE(self):
-        if self.SANDBOX:
-            return self._quote_balance
-        return self.fetch_balance(self.QUOTE_ASSET)
+        return self._quote_balance
 
     @property
     def CURRENT_PRICE(self):
         return self._current_price
+
+    @property
+    def MIN_NOTIONAL(self):
+        return self._min_quantity
+
+    @property
+    def STEP_SIZE(self):
+        return self._step_size
+
+    @property
+    def MIN_QUANTITY(self):
+        return self._min_quantity
 
     # endregion
 
@@ -54,7 +66,30 @@ class Broker(Loader):
     def CURRENT_PRICE(self, value):
         self._current_price = value
 
+    @MIN_NOTIONAL.setter
+    def MIN_NOTIONAL(self, value):
+        self._min_notional = value
+
+    @STEP_SIZE.setter
+    def STEP_SIZE(self, value):
+        self._step_size = value
+
+    @MIN_QUANTITY.setter
+    def MIN_QUANTITY(self, value):
+        self._min_quantity = value
+
     # endregion
+
+    def fetch_vars(self):
+
+        if not self.SANDBOX:
+            self.BASE_BALANCE = self.fetch_balance(self.BASE_ASSET)
+            self.QUOTE_BALANCE = self.fetch_balance(self.QUOTE_ASSET)
+
+        self.CURRENT_PRICE = self.fetch_current_price(self.SYMBOL)
+        self.MINIMUM_NOTIONAL = self.fetch_minimum_notional(self.SYMBOL)
+        self.STEP_SIZE = self.fetch_step_size(self.SYMBOL)
+        self.MINIMUM_QUANTITY = self.fetch_minimum_quantity(self.SYMBOL)
 
     def fetch_balance(self, asset) -> float:
 
@@ -166,7 +201,7 @@ class Broker(Loader):
 
         self.data["rsi"] = rsi
 
-    def rsi_signal(self):
+    def calculate_rsi_signal(self):
 
         def get_signal(row) -> str:
 
@@ -191,7 +226,7 @@ class Broker(Loader):
 
         available_quote = self.QUOTE_BALANCE
 
-        min_notional = self.fetch_minimum_notional(self.SYMBOL)
+        min_notional = self.MIN_NOTIONAL
 
         if available_quote < min_notional:
             print(f"Insufficient quote balance: {available_quote} is below the minimum notional value of {min_notional}.")
@@ -201,11 +236,11 @@ class Broker(Loader):
 
         calculated_quantity = available_quote / current_price
 
-        step_size = self.fetch_step_size(self.SYMBOL)
+        step_size = self.STEP_SIZE
 
         calculated_quantity = (calculated_quantity // step_size) * step_size
 
-        minimum_quantity = self.fetch_minimum_quantity(self.SYMBOL)
+        minimum_quantity = self.MINIMUM_QUANTITY
 
         if calculated_quantity < minimum_quantity:
             print(f"Calculated quantity ({calculated_quantity}) is below the minimum allowed ({minimum_quantity}).")
@@ -230,13 +265,13 @@ class Broker(Loader):
 
         available_base = self.BASE_BALANCE
 
-        minimum_quantity = self.fetch_minimum_quantity(self.SYMBOL)
+        minimum_quantity = self.MINIMUM_QUANTITY
 
         if available_base < minimum_quantity:
             print(f"Insufficient base balance: {available_base} is below the minimum allowed quantity of {minimum_quantity}.")
             return False
 
-        step_size = self.fetch_step_size(self.SYMBOL)
+        step_size = self.STEP_SIZE
 
         calculated_quantity = (available_base // step_size) * step_size
 

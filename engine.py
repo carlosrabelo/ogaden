@@ -1,20 +1,12 @@
 #!/usr/bin/env ./.venv/bin/python
 
-from config import Config
-from broker import Broker
 from trader import Trader
 
 if __name__ == "__main__":
 
-    config = Config()
+    trader = Trader()
 
-    broker = Broker(config)
-
-    trader = Trader(broker)
-
-    trader.initialize()
+    trader.setup()
 
     while True:
-        trader.execute_cycle()
-        trader.display_status()
-        trader.wait()
+        trader.execute()
