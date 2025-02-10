@@ -106,6 +106,7 @@ class Trader(Broker):
     def status(self):
 
         print()
+        print(f"SYMBOL             : {self.SYMBOL}")
         print(f"POSITION / SIGNAL  : {self.position} / {self.signal}")
         print(f"BASE_BALANCE       : {self.BASE_BALANCE:.8f}")
         print(f"QUOTE_BALANCE      : {self.QUOTE_BALANCE:.8f}")
@@ -114,6 +115,7 @@ class Trader(Broker):
         print(f"PURCHASE_PRICE     : {self.PURCHASE_PRICE:.8f}")
 
         data = {
+            "symbol": self.SYMBOL,
             "position": self.position,
             "signal": self.signal,
             "base_balance": f"{self.BASE_BALANCE:.8f}",

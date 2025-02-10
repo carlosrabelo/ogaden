@@ -30,6 +30,7 @@ def dashboard():
 def update_dashboard():
     while True:
         data = memcache_client.get_many([
+            "symbol",
             "position",
             "signal",
             "base_balance",
