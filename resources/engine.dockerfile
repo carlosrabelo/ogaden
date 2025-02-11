@@ -8,6 +8,6 @@ COPY resources/engine.requirements.txt requirements.txt
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY broker.py config.py loader.py engine.py trader.py ./
+COPY broker.py loader.py engine.py trader.py ./
 
 CMD [ "python", "engine.py" ]
