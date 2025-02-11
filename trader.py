@@ -190,12 +190,12 @@ class Trader(Broker):
 
     def status(self):
 
-        def timestamp(timezone_str: str) -> str:
+        def get_time(timezone_str: str) -> str:
             timezone = ZoneInfo(timezone_str)
             update_time = datetime.now(timezone).strftime("%d/%m/%Y %H:%M:%S")
             return update_time
 
-        update_time = timestamp(self.TIMEZONE)
+        update_time = get_time(self.TIMEZONE)
 
         print()
         print(f"UPDATE TIME        : {update_time}")
