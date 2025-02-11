@@ -20,9 +20,9 @@ class Loader:
         self.BASE_ASSET = os.getenv("BASE_ASSET", "BTC")
         self.QUOTE_ASSET = os.getenv("QUOTE_ASSET", "USDT")
 
-        self.INTERVAL = os.getenv("INTERVAL", "1m")
+        self.INTERVAL = os.getenv("INTERVAL", "15m")
 
-        self.LIMIT = int(os.getenv("LIMIT", 1000))
+        self.LIMIT = int(os.getenv("LIMIT", 900))
 
         self.TIMEZONE = os.getenv("TIMEZONE", "America/Cuiaba")
 

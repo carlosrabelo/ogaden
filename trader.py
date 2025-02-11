@@ -14,6 +14,7 @@ class Trader(Broker):
         self.memcache = base.Client(server=(self.MEMCACHED_HOST, self.MEMCACHED_PORT), key_prefix="ogaden")
 
         self._base_quote_balance = 0.0
+        self._expected_balance = 0.0
 
         self._purchase_price = 0.0
 
@@ -29,6 +30,11 @@ class Trader(Broker):
     def PURCHASE_PRICE(self):
         return self._purchase_price
 
+    @property
+    def EXPECTED_BALANCE(self):
+        self._expected_balance = self._base_balance * self._current_price + self._quote_balance
+        return self._expected_balance
+
     @BASE_QUOTE_BALANCE.setter
     def BASE_QUOTE_BALANCE(self, value):
         self._base_quote_balance = value
@@ -36,6 +42,10 @@ class Trader(Broker):
     @PURCHASE_PRICE.setter
     def PURCHASE_PRICE(self, value):
         self._purchase_price = value
+
+    @EXPECTED_BALANCE.setter
+    def EXPECTED_BALANCE(self, value):
+        self._expected_balance = value
 
     def setup(self):
 
@@ -48,7 +58,6 @@ class Trader(Broker):
     def execute(self):
 
         self.fetch_vars()
-
         self.fetch_data()
 
         self.calculate_rsi()
@@ -76,17 +85,6 @@ class Trader(Broker):
             self.PURCHASE_PRICE = self.CURRENT_PRICE
             self.position = "SELL"
 
-    def execute_sell(self):
-
-        if super().execute_sell():
-            self.PURCHASE_PRICE = 0.0
-            self.position = "BUY"
-
-    def execute_hold(self):
-
-        print()
-        print("HOLD")
-
     def can_buy(self):
         if self.position != "BUY":
             return False
@@ -103,6 +101,17 @@ class Trader(Broker):
 
         return self.signal == "SELL"
 
+    def execute_sell(self):
+
+        if super().execute_sell():
+            self.PURCHASE_PRICE = 0.0
+            self.position = "BUY"
+
+    def execute_hold(self):
+
+        print()
+        print("HOLD")
+
     def status(self):
 
         print()
@@ -111,6 +120,7 @@ class Trader(Broker):
         print(f"BASE_BALANCE       : {self.BASE_BALANCE:.8f}")
         print(f"QUOTE_BALANCE      : {self.QUOTE_BALANCE:.8f}")
         print(f"BASE_QUOTE_BALANCE : {self.BASE_QUOTE_BALANCE:.8f}")
+        print(f"EXPECTED_BALANCE   : {self.EXPECTED_BALANCE:.8f}")
         print(f"CURRENT_PRICE      : {self.CURRENT_PRICE:.8f}")
         print(f"PURCHASE_PRICE     : {self.PURCHASE_PRICE:.8f}")
 
@@ -121,6 +131,7 @@ class Trader(Broker):
             "base_balance": f"{self.BASE_BALANCE:.8f}",
             "quote_balance": f"{self.QUOTE_BALANCE:8f}",
             "base_quote_balance": f"{self.BASE_QUOTE_BALANCE:.8f}",
+            "expected_balance": f"{self.EXPECTED_BALANCE:.8f}",
             "current_price": f"{self.CURRENT_PRICE:.8f}",
             "purchase_price": f"{self.PURCHASE_PRICE:.8f}",
         }
