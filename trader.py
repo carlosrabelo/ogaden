@@ -31,6 +31,7 @@ class Trader(Broker):
 
         self.POSITION = "BUY"
         self.SIGNAL = "HOLD"
+        self.SIGNAL_RSI = 0
 
     # region
 
@@ -115,6 +116,8 @@ class Trader(Broker):
 
         self.calculate_rsi()
         self.calculate_rsi_signal()
+
+        self.SIGNAL_RSI = self.data["rsi"].iloc[-1]
 
         if self.can_buy():
 
@@ -201,7 +204,7 @@ class Trader(Broker):
         print(f"UPDATE TIME        : {update_time}")
         print(f"SYMBOL             : {self.SYMBOL}")
         print(f"INTERVAL           : {self.INTERVAL}")
-        print(f"POSITION / SIGNAL  : {self.POSITION} / {self.SIGNAL}")
+        print(f"POSITION / SIGNAL  : {self.POSITION} / {self.SIGNAL} ({self.SIGNAL_RSI:.2f})")
         print(f"BASE_BALANCE       : {self.BASE_BALANCE:.8f}")
         print(f"QUOTE_BALANCE      : {self.QUOTE_BALANCE:.8f}")
         print(f"BASE_QUOTE_BALANCE : {self.BASE_QUOTE_BALANCE:.8f}")
@@ -219,7 +222,7 @@ class Trader(Broker):
             "symbol": self.SYMBOL,
             "interval": self.INTERVAL,
             "position": self.POSITION,
-            "signal": self.SIGNAL,
+            "signal": f"{self.SIGNAL} ({self.SIGNAL_RSI:.2f})",
             "base_balance": f"{self.BASE_BALANCE:.8f}",
             "quote_balance": f"{self.QUOTE_BALANCE:8f}",
             "base_quote_balance": f"{self.BASE_QUOTE_BALANCE:.8f}",
