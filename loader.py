@@ -17,6 +17,9 @@ class Loader:
         self.API_KEY = os.getenv("API_KEY")
         self.API_SECRET = os.getenv("API_SECRET")
 
+        self.BASE_BALANCE_DEFAULT = float(os.getenv("BASE_BALANCE", 0.0))
+        self.QUOTE_BALANCE_DEFAULT = float(os.getenv("QUOTE_BALANCE", 100.0))
+
         self.BASE_ASSET = os.getenv("BASE_ASSET", "BTC")
         self.QUOTE_ASSET = os.getenv("QUOTE_ASSET", "USDT")
 

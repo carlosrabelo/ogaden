@@ -103,8 +103,8 @@ class Trader(Broker):
     def setup(self):
 
         if self.SANDBOX:
-            self.BASE_BALANCE = 0.0
-            self.QUOTE_BALANCE = 10.0
+            self.BASE_BALANCE = self.BASE_BALANCE_DEFAULT
+            self.QUOTE_BALANCE = self.QUOTE_BALANCE_DEFAULT
 
         self.status()
 
