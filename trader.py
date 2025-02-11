@@ -18,31 +18,50 @@ class Trader(Broker):
 
         self._purchase_price = 0.0
 
-        self._difference_price_v = 0.0
-        self._difference_price_p = 0.0
+        self._trailing_price = 0.0
+
+        self._diff_pprice_v = 0.0
+        self._diff_pprice_p = 0.0
+
+        self._diff_tprice_v = 0.0
+        self._diff_tprice_p = 0.0
 
         self.POSITION = "BUY"
         self.SIGNAL = "HOLD"
+
+    # region
 
     @property
     def BASE_QUOTE_BALANCE(self):
         return self._base_quote_balance
 
     @property
-    def PURCHASE_PRICE(self):
-        return self._purchase_price
-
-    @property
     def EXPECTED_BALANCE(self):
         return self._expected_balance
 
     @property
-    def DIFFERENCE_PRICE_V(self):
-        return self._difference_price_v
+    def PURCHASE_PRICE(self):
+        return self._purchase_price
 
     @property
-    def DIFFERENCE_PRICE_P(self):
-        return self._difference_price_p
+    def TRAILING_PRICE(self):
+        return self._trailing_price
+
+    @property
+    def DIFF_PPRICE_V(self):
+        return self._diff_pprice_v
+
+    @property
+    def DIFF_PPRICE_P(self):
+        return self._diff_pprice_p
+
+    @property
+    def DIFF_TPRICE_V(self):
+        return self._diff_tprice_v
+
+    @property
+    def DIFF_TPRICE_P(self):
+        return self._diff_tprice_p
 
     @BASE_QUOTE_BALANCE.setter
     def BASE_QUOTE_BALANCE(self, value):
@@ -52,17 +71,31 @@ class Trader(Broker):
     def PURCHASE_PRICE(self, value):
         self._purchase_price = value
 
+    @TRAILING_PRICE.setter
+    def TRAILING_PRICE(self, value):
+        self._trailing_price = value
+
     @EXPECTED_BALANCE.setter
     def EXPECTED_BALANCE(self, value):
         self._expected_balance = value
 
-    @DIFFERENCE_PRICE_V.setter
-    def DIFFERENCE_PRICE_V(self, value):
-        self._difference_price_v = value
+    @DIFF_PPRICE_V.setter
+    def DIFF_PPRICE_V(self, value):
+        self._diff_pprice_v = value
 
-    @DIFFERENCE_PRICE_P.setter
-    def DIFFERENCE_PRICE_P(self, value):
-        self._difference_price_p = value
+    @DIFF_PPRICE_P.setter
+    def DIFF_PPRICE_P(self, value):
+        self._diff_pprice_p = value
+
+    @DIFF_TPRICE_V.setter
+    def DIFF_TPRICE_V(self, value):
+        self._diff_tprice_v = value
+
+    @DIFF_TPRICE_P.setter
+    def DIFF_TPRICE_P(self, value):
+        self._diff_tprice_p = value
+
+    # endregion
 
     def setup(self):
 
@@ -92,17 +125,11 @@ class Trader(Broker):
 
             self.execute_hold()
 
-        self.update_position()
+        self.update_vars()
 
         self.status()
 
         time.sleep(60)
-
-    def execute_buy(self):
-
-        if super().execute_buy():
-            self.PURCHASE_PRICE = self.CURRENT_PRICE
-            self.POSITION = "SELL"
 
     def can_buy(self):
 
@@ -122,6 +149,16 @@ class Trader(Broker):
 
         return self.SIGNAL == "SELL"
 
+    def execute_buy(self):
+
+        if super().execute_buy():
+            self.PURCHASE_PRICE = self.CURRENT_PRICE
+
+            if self.PURCHASE_PRICE > self.TRAILING_PRICE:
+                self.TRAILING_PRICE = self.PURCHASE_PRICE
+
+            self.POSITION = "SELL"
+
     def execute_sell(self):
 
         if super().execute_sell():
@@ -133,14 +170,17 @@ class Trader(Broker):
         print()
         print("HOLD")
 
-    def update_position(self):
+    def update_vars(self):
 
         self.BASE_QUOTE_BALANCE = self.BASE_BALANCE * self.CURRENT_PRICE
 
         self.EXPECTED_BALANCE = self.BASE_BALANCE * self.CURRENT_PRICE + self.QUOTE_BALANCE
 
-        self.DIFFERENCE_PRICE_V = self.CURRENT_PRICE - self.PURCHASE_PRICE if self.PURCHASE_PRICE != 0.0 else 0.0
-        self.DIFFERENCE_PRICE_P = self.DIFFERENCE_PRICE_V / self.PURCHASE_PRICE * 100.0 if self.PURCHASE_PRICE != 0.0 else 0.0
+        self.DIFF_PPRICE_V = self.CURRENT_PRICE - self.PURCHASE_PRICE if self.PURCHASE_PRICE != 0.0 else 0.0
+        self.DIFF_PPRICE_P = self.DIFF_PPRICE_V / self.PURCHASE_PRICE * 100.0 if self.PURCHASE_PRICE != 0.0 else 0.0
+
+        self.DIFF_TPRICE_V = self.CURRENT_PRICE - self.TRAILING_PRICE if self.TRAILING_PRICE != 0.0 else 0.0
+        self.DIFF_TPRICE_P = self.DIFF_TPRICE_V / self.TRAILING_PRICE * 100.0 if self.TRAILING_PRICE != 0.0 else 0.0
 
     def status(self):
 
@@ -154,8 +194,11 @@ class Trader(Broker):
         print(f"EXPECTED_BALANCE   : {self.EXPECTED_BALANCE:.8f}")
         print(f"CURRENT_PRICE      : {self.CURRENT_PRICE:.8f}")
         print(f"PURCHASE_PRICE     : {self.PURCHASE_PRICE:.8f}")
-        print(f"DIFFERENCE_PRICE_V : {self.DIFFERENCE_PRICE_V:.8f}")
-        print(f"DIFFERENCE_PRICE_P : {self.DIFFERENCE_PRICE_P:.2f}%")
+        print(f"TRAILING_PRICE     : {self.TRAILING_PRICE:.8f}")
+        print(f"DIFF_PPRICE_V      : {self.DIFF_PPRICE_V:.8f}")
+        print(f"DIFF_PPRICE_P      : {self.DIFF_PPRICE_P:.2f}%")
+        print(f"DIFF_TPRICE_V      : {self.DIFF_TPRICE_V:.8f}")
+        print(f"DIFF_TPRICE_P      : {self.DIFF_TPRICE_P:.2f}%")
 
         data = {
             "symbol": self.SYMBOL,
@@ -168,7 +211,9 @@ class Trader(Broker):
             "expected_balance": f"{self.EXPECTED_BALANCE:.8f}",
             "current_price": f"{self.CURRENT_PRICE:.8f}",
             "purchase_price": f"{self.PURCHASE_PRICE:.8f}",
-            "difference_price": f"{self.DIFFERENCE_PRICE_V:.8f} ( {self.DIFFERENCE_PRICE_P:.2f}% )",
+            "trailing_price": f"{self.TRAILING_PRICE:.8f}",
+            "diff_pprice": f"{self.DIFF_PPRICE_V:.8f} ( {self.DIFF_PPRICE_P:.2f}% )",
+            "diff_tprice": f"{self.DIFF_TPRICE_V:.8f} ( {self.DIFF_TPRICE_P:.2f}% )",
         }
 
         self.memcache.set_many(values=data, expire=120)
