@@ -117,6 +117,7 @@ class Trader(Broker):
         self.calculate_rsi()
         self.calculate_rsi_signal()
 
+        self.SIGNAL = self.data["signal_rsi"].iloc[-1]
         self.SIGNAL_RSI = self.data["rsi"].iloc[-1]
 
         if self.can_buy():
@@ -153,8 +154,6 @@ class Trader(Broker):
 
         if self.DIFF_PPRICE_P > self.PROFIT_THRESHOLD:
             return True
-
-        self.SIGNAL = self.data["signal_rsi"].iloc[-1]
 
         return self.SIGNAL == "SELL"
 
