@@ -37,4 +37,6 @@ class Loader:
         self.RSI_BUY_THRESHOLD = int(os.getenv("RSI_BUY_THRESHOLD", 30))
         self.RSI_SELL_THRESHOLD = int(os.getenv("RSI_SELL_THRESHOLD", 70))
 
+        self.PROFIT_THRESHOLD = float(os.getenv("PROFIT_THRESHOLD", 1.0))
+
         self.SYMBOL = f"{self.BASE_ASSET}{self.QUOTE_ASSET}"

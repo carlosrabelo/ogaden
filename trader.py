@@ -1,5 +1,8 @@
 import time
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 from pymemcache.client import base
 
 from broker import Broker
@@ -145,6 +148,9 @@ class Trader(Broker):
         if self.POSITION != "SELL":
             return False
 
+        if self.DIFF_PPRICE_P > self.PROFIT_THRESHOLD:
+            return True
+
         self.SIGNAL = self.data["signal_rsi"].iloc[-1]
 
         return self.SIGNAL == "SELL"
@@ -184,7 +190,15 @@ class Trader(Broker):
 
     def status(self):
 
+        def timestamp(timezone_str: str) -> str:
+            timezone = ZoneInfo(timezone_str)
+            update_time = datetime.now(timezone).strftime("%d/%m/%Y %H:%M:%S")
+            return update_time
+
+        update_time = timestamp(self.TIMEZONE)
+
         print()
+        print(f"UPDATE TIME        : {update_time}")
         print(f"SYMBOL             : {self.SYMBOL}")
         print(f"INTERVAL           : {self.INTERVAL}")
         print(f"POSITION / SIGNAL  : {self.POSITION} / {self.SIGNAL}")
@@ -201,6 +215,7 @@ class Trader(Broker):
         print(f"DIFF_TPRICE_P      : {self.DIFF_TPRICE_P:.2f}%")
 
         data = {
+            "update_time": update_time,
             "symbol": self.SYMBOL,
             "interval": self.INTERVAL,
             "position": self.POSITION,
