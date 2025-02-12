@@ -153,8 +153,9 @@ class Trader(Broker):
         if self.POSITION != "SELL":
             return False
 
-        if self.DIFF_PPRICE_P > self.PROFIT_THRESHOLD:
-            return True
+        if self.PROFIT_THRESHOLD != 0.0:
+            if self.DIFF_PPRICE_P > self.PROFIT_THRESHOLD:
+                return True
 
         return self.SIGNAL == "SELL"
 

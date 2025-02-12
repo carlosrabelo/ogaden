@@ -12,5 +12,4 @@ if __name__ == "__main__":
     trader.calculate_ema()
     trader.calculate_rsi()
 
-    print(trader.data.head(15))
-    print(trader.data.tail(15))
+    print(trader.data)
