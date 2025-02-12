@@ -24,6 +24,8 @@ class Broker(Loader):
 
         self.data = pd.DataFrame()
 
+        # pd.set_option('display.max_rows', 30)
+
     # region
 
     @property
@@ -163,7 +165,7 @@ class Broker(Loader):
                 ],
             )
 
-            df = df[["close", "close_time"]]
+            df = df[["close_time", "close"]]
 
             df["close"] = df["close"].astype(float)
 
@@ -182,8 +184,20 @@ class Broker(Loader):
         self.data["fast_sma"] = self.data["close"].rolling(window=self.FAST_SMA).mean()
         self.data["slow_sma"] = self.data["close"].rolling(window=self.SLOW_SMA).mean()
 
+    def calculate_sma_prev(self):
+
         self.data["prev_fast_sma"] = self.data["fast_sma"].shift(1)
         self.data["prev_slow_sma"] = self.data["slow_sma"].shift(1)
+
+    def calculate_ema(self):
+
+        self.data["fast_ema"] = self.data["close"].ewm(span=self.FAST_EMA, adjust=False).mean()
+        self.data["slow_ema"] = self.data["close"].ewm(span=self.SLOW_EMA, adjust=False).mean()
+
+    def calculate_ema_prev(self):
+
+        self.data["prev_fast_ema"] = self.data["fast_ema"].shift(1)
+        self.data["prev_slow_ema"] = self.data["slow_ema"].shift(1)
 
     def calculate_rsi(self):
 
@@ -192,8 +206,8 @@ class Broker(Loader):
         gain = delta.where(delta > 0.0, 0.0)
         loss = -delta.where(delta < 0.0, 0.0)
 
-        avg_gain = gain.rolling(window=self.RSI_PERIOD).mean()
-        avg_loss = loss.rolling(window=self.RSI_PERIOD).mean()
+        avg_gain = gain.ewm(span=self.RSI_PERIOD, adjust=False).mean()
+        avg_loss = loss.ewm(span=self.RSI_PERIOD, adjust=False).mean()
 
         rs = avg_gain / avg_loss
 

@@ -114,6 +114,7 @@ class Trader(Broker):
         self.fetch_vars()
         self.fetch_data()
 
+        self.calculate_sma()
         self.calculate_rsi()
         self.calculate_rsi_signal()
 
