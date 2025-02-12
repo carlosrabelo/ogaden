@@ -1,6 +1,7 @@
 from binance.client import Client
 
 import pandas as pd
+import numpy as np
 
 from loader import Loader
 
@@ -23,8 +24,6 @@ class Broker(Loader):
         self._current_price = 0.0
 
         self.data = pd.DataFrame()
-
-        # pd.set_option('display.max_rows', 30)
 
     # region
 
@@ -184,17 +183,17 @@ class Broker(Loader):
         self.data["fast_sma"] = self.data["close"].rolling(window=self.FAST_SMA).mean()
         self.data["slow_sma"] = self.data["close"].rolling(window=self.SLOW_SMA).mean()
 
-    def calculate_sma_prev(self):
-
-        self.data["prev_fast_sma"] = self.data["fast_sma"].shift(1)
-        self.data["prev_slow_sma"] = self.data["slow_sma"].shift(1)
-
     def calculate_ema(self):
 
         self.data["fast_ema"] = self.data["close"].ewm(span=self.FAST_EMA, adjust=False).mean()
         self.data["slow_ema"] = self.data["close"].ewm(span=self.SLOW_EMA, adjust=False).mean()
 
-    def calculate_ema_prev(self):
+    def calculate_prev_sma(self):
+
+        self.data["prev_fast_sma"] = self.data["fast_sma"].shift(1)
+        self.data["prev_slow_sma"] = self.data["slow_sma"].shift(1)
+
+    def calculate_prev_ema(self):
 
         self.data["prev_fast_ema"] = self.data["fast_ema"].shift(1)
         self.data["prev_slow_ema"] = self.data["slow_ema"].shift(1)
@@ -209,7 +208,7 @@ class Broker(Loader):
         avg_gain = gain.ewm(span=self.RSI_PERIOD, adjust=False).mean()
         avg_loss = loss.ewm(span=self.RSI_PERIOD, adjust=False).mean()
 
-        rs = avg_gain / avg_loss
+        rs = np.where(avg_loss == 0, 0, avg_gain / avg_loss)
 
         rsi = 100.0 - (100.0 / (1.0 + rs))
 

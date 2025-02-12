@@ -67,6 +67,10 @@ class Trader(Broker):
     def DIFF_TPRICE_P(self):
         return self._diff_tprice_p
 
+    # endregion
+
+    # region
+
     @BASE_QUOTE_BALANCE.setter
     def BASE_QUOTE_BALANCE(self, value):
         self._base_quote_balance = value
