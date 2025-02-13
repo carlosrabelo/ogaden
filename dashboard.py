@@ -41,6 +41,7 @@ def update_dashboard():
             "expected_balance",
             "current_price",
             "purchase_price",
+            "trailing_price",
             "diff_pprice",
             "diff_tprice",
         ])
