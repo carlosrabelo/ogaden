@@ -44,4 +44,8 @@ class Loader:
 
         self.PROFIT_THRESHOLD = float(os.getenv("PROFIT_THRESHOLD", 0.0))
 
+        self.TRAILING_THRESHOLD = float(os.getenv("TRAILING_THRESHOLD", 0.0))
+
         self.SYMBOL = f"{self.BASE_ASSET}{self.QUOTE_ASSET}"
+
+        self.TRAILING_STOP = True if self.TRAILING_THRESHOLD != 0.0 else False

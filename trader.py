@@ -166,17 +166,24 @@ class Trader(Broker):
     def execute_buy(self):
 
         if super().execute_buy():
+
             self.PURCHASE_PRICE = self.CURRENT_PRICE
 
-            if self.PURCHASE_PRICE > self.TRAILING_PRICE:
-                self.TRAILING_PRICE = self.PURCHASE_PRICE
+            if self.TRAILING_STOP:
+
+                trailing_price = self.PURCHASE_PRICE * (1.0 - self.TRAILING_THRESHOLD / 100.0)
+
+                if trailing_price > self.TRAILING_PRICE:
+                    self.TRAILING_PRICE = trailing_price
 
             self.POSITION = "SELL"
 
     def execute_sell(self):
 
         if super().execute_sell():
+
             self.PURCHASE_PRICE = 0.0
+
             self.POSITION = "BUY"
 
     def execute_hold(self):
