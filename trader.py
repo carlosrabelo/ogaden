@@ -157,8 +157,8 @@ class Trader(Broker):
         if self.POSITION != "SELL":
             return False
 
-        if self.PROFIT_THRESHOLD != 0.0:
-            if self.DIFF_PPRICE_P > self.PROFIT_THRESHOLD:
+        if self.TRAILING_STOP:
+            if self.CURRENT_PRICE < self.TRAILING_PRICE:
                 return True
 
         return self.SIGNAL == "SELL"
@@ -170,9 +170,7 @@ class Trader(Broker):
             self.PURCHASE_PRICE = self.CURRENT_PRICE
 
             if self.TRAILING_STOP:
-
                 trailing_price = self.PURCHASE_PRICE * (1.0 - self.TRAILING_THRESHOLD / 100.0)
-
                 if trailing_price > self.TRAILING_PRICE:
                     self.TRAILING_PRICE = trailing_price
 
