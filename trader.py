@@ -31,7 +31,6 @@ class Trader(Broker):
 
         self.POSITION = "BUY"
         self.SIGNAL = "HOLD"
-        self.SIGNAL_RSI = 0
 
     # region
 
@@ -120,10 +119,13 @@ class Trader(Broker):
 
         self.calculate_sma()
         self.calculate_rsi()
+
+        self.calculate_sma_prev()
+
+        self.calculate_sma_signal()
         self.calculate_rsi_signal()
 
-        self.SIGNAL = self.data["signal_rsi"].iloc[-1]
-        self.SIGNAL_RSI = self.data["rsi"].iloc[-1]
+        self.SIGNAL = self.data["signal_sma"].iloc[-1]
 
         if self.can_buy():
 
@@ -148,7 +150,10 @@ class Trader(Broker):
         if self.POSITION != "BUY":
             return False
 
-        self.SIGNAL = self.data["signal_rsi"].iloc[-1]
+        last_row = self.data.iloc[-1]
+
+        if last_row["fast_sma"] > last_row["slow_sma"]:
+            return True
 
         return self.SIGNAL == "BUY"
 
@@ -169,10 +174,10 @@ class Trader(Broker):
 
             self.PURCHASE_PRICE = self.CURRENT_PRICE
 
-            if self.TRAILING_STOP:
-                trailing_price = self.PURCHASE_PRICE * (1.0 - self.TRAILING_THRESHOLD / 100.0)
-                if trailing_price > self.TRAILING_PRICE:
-                    self.TRAILING_PRICE = trailing_price
+            trailing_price = self.PURCHASE_PRICE * (1.0 - self.TRAILING_THRESHOLD / 100.0)
+
+            if trailing_price > self.TRAILING_PRICE:
+                self.TRAILING_PRICE = trailing_price
 
             self.POSITION = "SELL"
 
@@ -214,7 +219,7 @@ class Trader(Broker):
         print(f"UPDATE TIME        : {update_time}")
         print(f"SYMBOL             : {self.SYMBOL}")
         print(f"INTERVAL           : {self.INTERVAL}")
-        print(f"POSITION / SIGNAL  : {self.POSITION} / {self.SIGNAL} ({self.SIGNAL_RSI:.2f})")
+        print(f"POSITION / SIGNAL  : {self.POSITION} / {self.SIGNAL}")
         print(f"BASE_BALANCE       : {self.BASE_BALANCE:.8f}")
         print(f"QUOTE_BALANCE      : {self.QUOTE_BALANCE:.8f}")
         print(f"BASE_QUOTE_BALANCE : {self.BASE_QUOTE_BALANCE:.8f}")
@@ -232,7 +237,7 @@ class Trader(Broker):
             "symbol": self.SYMBOL,
             "interval": self.INTERVAL,
             "position": self.POSITION,
-            "signal": f"{self.SIGNAL} ({self.SIGNAL_RSI:.2f})",
+            "signal": f"{self.SIGNAL}",
             "base_balance": f"{self.BASE_BALANCE:.8f}",
             "quote_balance": f"{self.QUOTE_BALANCE:8f}",
             "base_quote_balance": f"{self.BASE_QUOTE_BALANCE:.8f}",

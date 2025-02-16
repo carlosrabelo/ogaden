@@ -188,15 +188,33 @@ class Broker(Loader):
         self.data["fast_ema"] = self.data["close"].ewm(span=self.FAST_EMA, adjust=False).mean()
         self.data["slow_ema"] = self.data["close"].ewm(span=self.SLOW_EMA, adjust=False).mean()
 
-    def calculate_prev_sma(self):
+    def calculate_sma_prev(self):
 
         self.data["prev_fast_sma"] = self.data["fast_sma"].shift(1)
         self.data["prev_slow_sma"] = self.data["slow_sma"].shift(1)
 
-    def calculate_prev_ema(self):
+    def calculate_ema_prev(self):
 
         self.data["prev_fast_ema"] = self.data["fast_ema"].shift(1)
         self.data["prev_slow_ema"] = self.data["slow_ema"].shift(1)
+
+    def calculate_sma_signal(self):
+
+        def get_sma_signal(row):
+
+            if pd.isna(row["fast_sma"]) or pd.isna(row["slow_sma"]) or pd.isna(row["prev_fast_sma"]) or pd.isna(row["prev_slow_sma"]):
+                return "HOLD"
+
+            if row["prev_fast_sma"] < row["prev_slow_sma"] and row["fast_sma"] > row["slow_sma"]:
+                return "BUY"
+
+            elif row["prev_fast_sma"] > row["prev_slow_sma"] and row["fast_sma"] < row["slow_sma"]:
+                return "SELL"
+
+            else:
+                return "HOLD"
+
+        self.data["signal_sma"] = self.data.apply(get_sma_signal, axis=1)
 
     def calculate_rsi(self):
 
