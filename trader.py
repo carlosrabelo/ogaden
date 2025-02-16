@@ -162,7 +162,11 @@ class Trader(Broker):
         if self.POSITION != "SELL":
             return False
 
-        if self.TRAILING_STOP:
+        if self.PROFIT_ENABLE:
+            if self.DIFF_PPRICE_P > self.PROFIT_THRESHOLD:
+                return True
+
+        if self.TRAILING_ENABLE:
             if self.CURRENT_PRICE < self.TRAILING_PRICE:
                 return True
 

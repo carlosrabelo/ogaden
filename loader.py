@@ -48,4 +48,6 @@ class Loader:
 
         self.SYMBOL = f"{self.BASE_ASSET}{self.QUOTE_ASSET}"
 
-        self.TRAILING_STOP = True if self.TRAILING_THRESHOLD != 0.0 else False
+        self.PROFIT_ENABLE = True if self.PROFIT_THRESHOLD != 0.0 else False
+
+        self.TRAILING_ENABLE = True if self.TRAILING_THRESHOLD != 0.0 else False
