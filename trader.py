@@ -30,7 +30,8 @@ class Trader(Broker):
         self._diff_tprice_p = 0.0
 
         self.POSITION = "BUY"
-        self.SIGNAL = "HOLD"
+
+        self.SIGNAL_SMA = "HOLD"
 
     # region
 
@@ -120,12 +121,11 @@ class Trader(Broker):
         self.calculate_sma()
         self.calculate_rsi()
 
-        self.calculate_sma_prev()
-
         self.calculate_sma_signal()
         self.calculate_rsi_signal()
 
-        self.SIGNAL = self.data["signal_sma"].iloc[-1]
+        self.SIGNAL_SMA = self.data["signal_sma"].iloc[-1]
+        self.SIGNAL_RSI = self.data["signal_rsi"].iloc[-1]
 
         if self.can_buy():
 
@@ -150,12 +150,7 @@ class Trader(Broker):
         if self.POSITION != "BUY":
             return False
 
-        last_row = self.data.iloc[-1]
-
-        if last_row["fast_sma"] > last_row["slow_sma"]:
-            return True
-
-        return self.SIGNAL == "BUY"
+        return self.SIGNAL_SMA == "BUY"
 
     def can_sell(self):
 
@@ -170,7 +165,7 @@ class Trader(Broker):
             if self.CURRENT_PRICE < self.TRAILING_PRICE:
                 return True
 
-        return self.SIGNAL == "SELL"
+        return self.SIGNAL_SMA == "SELL"
 
     def execute_buy(self):
 
@@ -223,7 +218,7 @@ class Trader(Broker):
         print(f"UPDATE TIME        : {update_time}")
         print(f"SYMBOL             : {self.SYMBOL}")
         print(f"INTERVAL           : {self.INTERVAL}")
-        print(f"POSITION / SIGNAL  : {self.POSITION} / {self.SIGNAL}")
+        print(f"POSITION / SIGNAL  : {self.POSITION} / {self.SIGNAL_SMA}")
         print(f"BASE_BALANCE       : {self.BASE_BALANCE:.8f}")
         print(f"QUOTE_BALANCE      : {self.QUOTE_BALANCE:.8f}")
         print(f"BASE_QUOTE_BALANCE : {self.BASE_QUOTE_BALANCE:.8f}")
@@ -241,7 +236,7 @@ class Trader(Broker):
             "symbol": self.SYMBOL,
             "interval": self.INTERVAL,
             "position": self.POSITION,
-            "signal": f"{self.SIGNAL}",
+            "signal": f"{self.SIGNAL_SMA}",
             "base_balance": f"{self.BASE_BALANCE:.8f}",
             "quote_balance": f"{self.QUOTE_BALANCE:8f}",
             "base_quote_balance": f"{self.BASE_QUOTE_BALANCE:.8f}",

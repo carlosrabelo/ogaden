@@ -168,7 +168,7 @@ class Broker(Loader):
 
             df["close"] = df["close"].astype(float)
 
-            df["close_time"] = pd.to_datetime(df["close_time"], unit="ms").dt.tz_localize("UTC").dt.tz_convert(self.TIMEZONE)
+            df["close_time"] = pd.to_datetime(df["close_time"], unit="ms", utc=True).dt.tz_convert(self.TIMEZONE).dt.floor("s").dt.tz_localize(None)
 
             self.data = df
 
@@ -188,33 +188,35 @@ class Broker(Loader):
         self.data["fast_ema"] = self.data["close"].ewm(span=self.FAST_EMA, adjust=False).mean()
         self.data["slow_ema"] = self.data["close"].ewm(span=self.SLOW_EMA, adjust=False).mean()
 
-    def calculate_sma_prev(self):
-
-        self.data["prev_fast_sma"] = self.data["fast_sma"].shift(1)
-        self.data["prev_slow_sma"] = self.data["slow_sma"].shift(1)
-
-    def calculate_ema_prev(self):
-
-        self.data["prev_fast_ema"] = self.data["fast_ema"].shift(1)
-        self.data["prev_slow_ema"] = self.data["slow_ema"].shift(1)
-
     def calculate_sma_signal(self):
 
         def get_sma_signal(row):
-
-            if pd.isna(row["fast_sma"]) or pd.isna(row["slow_sma"]) or pd.isna(row["prev_fast_sma"]) or pd.isna(row["prev_slow_sma"]):
+            if pd.isna(row["fast_sma"]) or pd.isna(row["slow_sma"]):
                 return "HOLD"
 
-            if row["prev_fast_sma"] < row["prev_slow_sma"] and row["fast_sma"] > row["slow_sma"]:
+            if row["fast_sma"] > row["slow_sma"]:
                 return "BUY"
-
-            elif row["prev_fast_sma"] > row["prev_slow_sma"] and row["fast_sma"] < row["slow_sma"]:
+            elif row["fast_sma"] < row["slow_sma"]:
                 return "SELL"
-
             else:
                 return "HOLD"
 
         self.data["signal_sma"] = self.data.apply(get_sma_signal, axis=1)
+
+    def calculate_ema_signal(self):
+
+        def get_ema_signal(row):
+            if pd.isna(row["fast_ema"]) or pd.isna(row["slow_ema"]):
+                return "HOLD"
+
+            if row["fast_ema"] > row["slow_ema"]:
+                return "BUY"
+            elif row["fast_ema"] < row["slow_ema"]:
+                return "SELL"
+            else:
+                return "HOLD"
+
+        self.data["signal_ema"] = self.data.apply(get_ema_signal, axis=1)
 
     def calculate_rsi(self):
 
@@ -240,6 +242,9 @@ class Broker(Loader):
                 return "HOLD"
 
             rsi = row["rsi"]
+
+            if rsi == 0.0:
+                return "HOLD"
 
             rsi_buy_threshold = self.RSI_BUY_THRESHOLD
             rsi_sell_threshold = self.RSI_SELL_THRESHOLD
