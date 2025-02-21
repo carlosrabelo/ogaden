@@ -32,6 +32,7 @@ class Trader(Broker):
         self.POSITION = "BUY"
 
         self.SIGNAL_SMA = "HOLD"
+        self.SIGNAL_RSI = "HOLD"
 
     # region
 
@@ -218,7 +219,8 @@ class Trader(Broker):
         print(f"UPDATE TIME        : {update_time}")
         print(f"SYMBOL             : {self.SYMBOL}")
         print(f"INTERVAL           : {self.INTERVAL}")
-        print(f"POSITION / SIGNAL  : {self.POSITION} / {self.SIGNAL_SMA}")
+        print(f"POSITION           : {self.POSITION}")
+        print(f"SIGNAL             : {self.SIGNAL_SMA} / {self.SIGNAL_RSI}")
         print(f"BASE_BALANCE       : {self.BASE_BALANCE:.8f}")
         print(f"QUOTE_BALANCE      : {self.QUOTE_BALANCE:.8f}")
         print(f"BASE_QUOTE_BALANCE : {self.BASE_QUOTE_BALANCE:.8f}")
@@ -236,7 +238,7 @@ class Trader(Broker):
             "symbol": self.SYMBOL,
             "interval": self.INTERVAL,
             "position": self.POSITION,
-            "signal": f"{self.SIGNAL_SMA}",
+            "signal": f"{self.SIGNAL_SMA} / {self.SIGNAL_RSI}",
             "base_balance": f"{self.BASE_BALANCE:.8f}",
             "quote_balance": f"{self.QUOTE_BALANCE:8f}",
             "base_quote_balance": f"{self.BASE_QUOTE_BALANCE:.8f}",
