@@ -191,6 +191,7 @@ class Broker(Loader):
     def calculate_sma_signal(self):
 
         def get_sma_signal(row):
+
             if pd.isna(row["fast_sma"]) or pd.isna(row["slow_sma"]):
                 return "HOLD"
 
@@ -206,6 +207,7 @@ class Broker(Loader):
     def calculate_ema_signal(self):
 
         def get_ema_signal(row):
+
             if pd.isna(row["fast_ema"]) or pd.isna(row["slow_ema"]):
                 return "HOLD"
 
