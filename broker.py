@@ -2,6 +2,7 @@ from binance.client import Client
 
 import pandas as pd
 import numpy as np
+import ta
 
 from loader import Loader
 
@@ -180,85 +181,29 @@ class Broker(Loader):
 
     def calculate_sma(self):
 
-        self.data["fast_sma"] = self.data["close"].rolling(window=self.FAST_SMA).mean()
-        self.data["slow_sma"] = self.data["close"].rolling(window=self.SLOW_SMA).mean()
-
-    def calculate_ema(self):
-
-        self.data["fast_ema"] = self.data["close"].ewm(span=self.FAST_EMA, adjust=False).mean()
-        self.data["slow_ema"] = self.data["close"].ewm(span=self.SLOW_EMA, adjust=False).mean()
+        self.data["fast_sma"] = ta.trend.SMAIndicator(close=self.data["close"], window=self.FAST_SMA).sma_indicator()
+        self.data["slow_sma"] = ta.trend.SMAIndicator(close=self.data["close"], window=self.SLOW_SMA).sma_indicator()
 
     def calculate_sma_signal(self):
 
-        def get_sma_signal(row):
+        self.data["signal_sma"] = self.data.apply(lambda row: "BUY" if row["fast_sma"] > row["slow_sma"] else "SELL" if row["fast_sma"] < row["slow_sma"] else "HOLD", axis=1)
 
-            if pd.isna(row["fast_sma"]) or pd.isna(row["slow_sma"]):
-                return "HOLD"
+    def calculate_ema(self):
 
-            if row["fast_sma"] > row["slow_sma"]:
-                return "BUY"
-            elif row["fast_sma"] < row["slow_sma"]:
-                return "SELL"
-            else:
-                return "HOLD"
-
-        self.data["signal_sma"] = self.data.apply(get_sma_signal, axis=1)
+        self.data["fast_ema"] = ta.trend.EMAIndicator(close=self.data["close"], window=self.FAST_EMA).ema_indicator()
+        self.data["slow_ema"] = ta.trend.EMAIndicator(close=self.data["close"], window=self.SLOW_EMA).ema_indicator()
 
     def calculate_ema_signal(self):
 
-        def get_ema_signal(row):
-
-            if pd.isna(row["fast_ema"]) or pd.isna(row["slow_ema"]):
-                return "HOLD"
-
-            if row["fast_ema"] > row["slow_ema"]:
-                return "BUY"
-            elif row["fast_ema"] < row["slow_ema"]:
-                return "SELL"
-            else:
-                return "HOLD"
-
-        self.data["signal_ema"] = self.data.apply(get_ema_signal, axis=1)
+        self.data["signal_ema"] = self.data.apply(lambda row: "BUY" if row["fast_ema"] > row["slow_ema"] else "SELL" if row["fast_ema"] < row["slow_ema"] else "HOLD", axis=1)
 
     def calculate_rsi(self):
 
-        delta = self.data["close"].diff()
-
-        gain = delta.where(delta > 0.0, 0.0)
-        loss = -delta.where(delta < 0.0, 0.0)
-
-        avg_gain = gain.ewm(span=self.RSI_PERIOD, adjust=False).mean()
-        avg_loss = loss.ewm(span=self.RSI_PERIOD, adjust=False).mean()
-
-        rs = np.where(avg_loss == 0, 0, avg_gain / avg_loss)
-
-        rsi = 100.0 - (100.0 / (1.0 + rs))
-
-        self.data["rsi"] = rsi
+        self.data["rsi"] = ta.momentum.RSIIndicator(close=self.data["close"], window=self.RSI_PERIOD).rsi()
 
     def calculate_rsi_signal(self):
 
-        def get_signal(row) -> str:
-
-            if pd.isna(row["rsi"]):
-                return "HOLD"
-
-            rsi = row["rsi"]
-
-            if rsi == 0.0:
-                return "HOLD"
-
-            rsi_buy_threshold = self.RSI_BUY_THRESHOLD
-            rsi_sell_threshold = self.RSI_SELL_THRESHOLD
-
-            if rsi < rsi_buy_threshold:
-                return "BUY"
-            elif rsi > rsi_sell_threshold:
-                return "SELL"
-            else:
-                return "HOLD"
-
-        self.data["signal_rsi"] = self.data.apply(get_signal, axis=1)
+        self.data["signal_rsi"] = self.data["rsi"].apply(lambda rsi: "BUY" if rsi < self.RSI_BUY_THRESHOLD else "SELL" if rsi > self.RSI_SELL_THRESHOLD else "HOLD")
 
     def execute_buy(self) -> bool:
 
