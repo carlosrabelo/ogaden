@@ -42,7 +42,7 @@ class Broker(Loader):
 
     @property
     def MIN_NOTIONAL(self):
-        return self._min_quantity
+        return self._min_notional
 
     @property
     def STEP_SIZE(self):
@@ -142,13 +142,13 @@ class Broker(Loader):
 
         try:
 
-            dict = self.binance.get_klines(symbol=self.SYMBOL, interval=self.INTERVAL, limit=self.LIMIT)
+            klines = self.binance.get_klines(symbol=self.SYMBOL, interval=self.INTERVAL, limit=self.LIMIT)
 
-            if not dict:
+            if not klines:
                 raise ValueError("No klines data found for the specified SYMBOL and interval.")
 
             df = pd.DataFrame(
-                dict,
+                klines,
                 columns=[
                     "open_time",
                     "open",
