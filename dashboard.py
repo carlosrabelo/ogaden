@@ -39,11 +39,11 @@ def update_dashboard():
             "quote_balance",
             "base_quote_balance",
             "expected_balance",
+            "trailing_balance",
             "current_price",
             "purchase_price",
-            "trailing_price",
-            "diff_pprice",
-            "diff_tprice",
+            "difference_price_v",
+            "difference_price_p",
         ])
 
         dashboard_data = {key: (value.decode() if isinstance(value, bytes) else value) for key, value in data.items()}
