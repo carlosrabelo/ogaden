@@ -132,20 +132,15 @@ class Trader(Broker):
         if self.POSITION != "BUY":
             return False
 
-        return self.SIGNAL_RSI == "BUY"
+        return self.SIGNAL_SMA == "BUY"
 
     def can_sell(self):
 
         if self.POSITION != "SELL":
             return False
 
-        if self.PROFIT_ENABLE:
-            if self.DIFFERENCE_PRICE_P > self.PROFIT_THRESHOLD:
-                return True
-
         if self.TRAILING_ENABLE:
-            if self.TRAILING_BALANCE > self.EXPECTED_BALANCE:
-                return True
+            return self.EXPECTED_BALANCE < self.TRAILING_BALANCE
 
         return self.SIGNAL_RSI == "SELL"
 
@@ -185,7 +180,7 @@ class Trader(Broker):
 
         elif self.POSITION == "SELL":
 
-            trailing_balance = self.BASE_QUOTE_BALANCE * (1.0 - self.TRAILING_THRESHOLD / 100.0)
+            trailing_balance = self.EXPECTED_BALANCE * (1.0 - self.TRAILING_THRESHOLD / 100.0)
 
             if trailing_balance > self.TRAILING_BALANCE:
                 self.TRAILING_BALANCE = trailing_balance
