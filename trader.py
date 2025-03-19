@@ -186,7 +186,7 @@ class Trader(Broker):
                 self.TRAILING_BALANCE = trailing_balance
 
             self.DIFFERENCE_PRICE_V = self.CURRENT_PRICE - self.PURCHASE_PRICE
-            self.DIFFERENCE_PRICE_P = self.DIFFERENCE_PRICE_V / self.PURCHASE_PRICE * 100.0 if self.PURCHASE_PRICE != 0.0 else 0.0
+            self.DIFFERENCE_PRICE_P = (self.DIFFERENCE_PRICE_V / self.PURCHASE_PRICE * 100.0) if self.PURCHASE_PRICE != 0.0 else 0.0
 
     def status(self):
 
