@@ -173,7 +173,7 @@ class Trader(Broker):
 
         self.BASE_QUOTE_BALANCE = self.BASE_BALANCE * self.CURRENT_PRICE
 
-        self.EXPECTED_BALANCE = self.BASE_QUOTE_BALANCE + self.QUOTE_BALANCE
+        self.EXPECTED_BALANCE = self.QUOTE_BALANCE + self.BASE_QUOTE_BALANCE
 
         if self.POSITION == "BUY":
 
