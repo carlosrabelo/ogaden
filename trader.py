@@ -214,8 +214,7 @@ class Trader(Broker):
         print(f"TRAILING_BALANCE   : {self.TRAILING_BALANCE:.8f}")
         print(f"CURRENT_PRICE      : {self.CURRENT_PRICE:.8f}")
         print(f"PURCHASE_PRICE     : {self.PURCHASE_PRICE:.8f}")
-        print(f"DIFFERENCE_PRICE_V : {self.DIFFERENCE_PRICE_V:.8f}")
-        print(f"DIFFERENCE_PRICE_P : {self.DIFFERENCE_PRICE_P:.2f}")
+        print(f"DIFFERENCE_PRICE   : {self.DIFFERENCE_PRICE_V:.8f} / {self.DIFFERENCE_PRICE_P:.2f}")
 
         data = {
             "update_time": update_time,
@@ -230,8 +229,7 @@ class Trader(Broker):
             "trailing_balance": f"{self.TRAILING_BALANCE:.8f}",
             "current_price": f"{self.CURRENT_PRICE:.8f}",
             "purchase_price": f"{self.PURCHASE_PRICE:.8f}",
-            "difference_price_v": f"{self.DIFFERENCE_PRICE_P:.8f}",
-            "difference_price_p": f"{self.DIFFERENCE_PRICE_V:.2f}"
+            "difference_price": f"{self.DIFFERENCE_PRICE_P:.8f} / {self.DIFFERENCE_PRICE_V:.2f}"
         }
 
         self.memcache.set_many(values=data, expire=120)

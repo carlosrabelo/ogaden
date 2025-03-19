@@ -18,11 +18,11 @@ class Broker(Loader):
         self._base_balance = 0.0
         self._quote_balance = 0.0
 
+        self._current_price = 0.0
+
         self._min_notional = 0.0
         self._step_size = 0.0
         self._min_quantity = 0.0
-
-        self._current_price = 0.0
 
         self.data = pd.DataFrame()
 
@@ -89,6 +89,7 @@ class Broker(Loader):
             self.QUOTE_BALANCE = self.fetch_balance(self.QUOTE_ASSET)
 
         self.CURRENT_PRICE = self.fetch_current_price(self.SYMBOL)
+
         self.MINIMUM_NOTIONAL = self.fetch_minimum_notional(self.SYMBOL)
         self.STEP_SIZE = self.fetch_step_size(self.SYMBOL)
         self.MINIMUM_QUANTITY = self.fetch_minimum_quantity(self.SYMBOL)
