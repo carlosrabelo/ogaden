@@ -23,7 +23,7 @@ class Loader:
         self.BASE_ASSET = os.getenv("BASE_ASSET", "BTC")
         self.QUOTE_ASSET = os.getenv("QUOTE_ASSET", "USDT")
 
-        self.INTERVAL = os.getenv("INTERVAL", "15m")
+        self.INTERVAL = os.getenv("INTERVAL", "1h")
 
         self.TIMEZONE = os.getenv("TIMEZONE", "America/Cuiaba")
 
@@ -44,11 +44,15 @@ class Loader:
 
         self.PROFIT_THRESHOLD = float(os.getenv("PROFIT_THRESHOLD", 0.0))
 
+        self.LOSS_THRESHOLD = float(os.getenv("LOSS_THRESHOLD", 0.0)) * -1.0
+
         self.TRAILING_THRESHOLD = float(os.getenv("TRAILING_THRESHOLD", 0.0))
 
         self.SYMBOL = f"{self.BASE_ASSET}{self.QUOTE_ASSET}"
 
         self.PROFIT_ENABLE = True if self.PROFIT_THRESHOLD != 0.0 else False
+
+        self.LOSS_ENABLE = True if self.LOSS_THRESHOLD != 0.0 else False
 
         self.TRAILING_ENABLE = True if self.TRAILING_THRESHOLD != 0.0 else False
 
