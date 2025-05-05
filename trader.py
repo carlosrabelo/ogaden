@@ -152,7 +152,8 @@ class Trader(Broker):
                 return True
 
         if self.TRAILING_ENABLE:
-            return self.TRAILING_BALANCE > self.EXPECTED_BALANCE
+            if self.TRAILING_BALANCE > self.EXPECTED_BALANCE:
+                return True
 
         return self.SIGNAL_EMA == "SELL" and self.SIGNAL_RSI == "SELL"
 

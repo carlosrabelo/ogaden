@@ -23,7 +23,7 @@ class Loader:
         self.BASE_ASSET = os.getenv("BASE_ASSET", "BTC")
         self.QUOTE_ASSET = os.getenv("QUOTE_ASSET", "USDT")
 
-        self.INTERVAL = os.getenv("INTERVAL", "1h")
+        self.INTERVAL = os.getenv("INTERVAL", "15m")
 
         self.TIMEZONE = os.getenv("TIMEZONE", "America/Cuiaba")
 
@@ -39,8 +39,8 @@ class Loader:
 
         self.LIMIT = int(os.getenv("LIMIT", limit))
 
-        self.RSI_BUY_THRESHOLD = int(os.getenv("RSI_BUY_THRESHOLD", 30))
-        self.RSI_SELL_THRESHOLD = int(os.getenv("RSI_SELL_THRESHOLD", 70))
+        self.RSI_BUY_THRESHOLD = int(os.getenv("RSI_BUY_THRESHOLD", 40))
+        self.RSI_SELL_THRESHOLD = int(os.getenv("RSI_SELL_THRESHOLD", 60))
 
         self.PROFIT_THRESHOLD = float(os.getenv("PROFIT_THRESHOLD", 0.0))
 
