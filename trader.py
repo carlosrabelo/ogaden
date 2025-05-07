@@ -136,7 +136,7 @@ class Trader(Broker):
         if self.POSITION != "BUY":
             return False
 
-        return self.SIGNAL_EMA == "BUY" and self.SIGNAL_RSI == "BUY"
+        return self.SIGNAL_RSI == "BUY"
 
     def can_sell(self):
 
@@ -155,7 +155,7 @@ class Trader(Broker):
             if self.TRAILING_BALANCE > self.EXPECTED_BALANCE:
                 return True
 
-        return self.SIGNAL_EMA == "SELL" and self.SIGNAL_RSI == "SELL"
+        return self.SIGNAL_RSI == "SELL"
 
     def execute_buy(self):
 
@@ -215,7 +215,7 @@ class Trader(Broker):
         print(f"SYMBOL             : {self.SYMBOL}")
         print(f"INTERVAL           : {self.INTERVAL}")
         print(f"POSITION           : {self.POSITION}")
-        print(f"SIGNAL             : {self.SIGNAL_EMA} / {self.SIGNAL_RSI} / {self.RSI:.2f}")
+        print(f"SIGNAL             : {self.SIGNAL_RSI} / {self.RSI:.2f}")
         print(f"BASE_BALANCE       : {self.BASE_BALANCE:.8f}")
         print(f"QUOTE_BALANCE      : {self.QUOTE_BALANCE:.8f}")
         print(f"BASE_QUOTE_BALANCE : {self.BASE_QUOTE_BALANCE:.8f}")
@@ -230,7 +230,7 @@ class Trader(Broker):
             "symbol": self.SYMBOL,
             "interval": self.INTERVAL,
             "position": self.POSITION,
-            "signal": f"{self.SIGNAL_EMA} / {self.SIGNAL_RSI} / {self.RSI:.2f}",
+            "signal": f"{self.SIGNAL_RSI} / {self.RSI:.2f}",
             "base_balance": f"{self.BASE_BALANCE:.8f}",
             "quote_balance": f"{self.QUOTE_BALANCE:8f}",
             "base_quote_balance": f"{self.BASE_QUOTE_BALANCE:.8f}",
