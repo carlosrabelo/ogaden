@@ -1,0 +1,46 @@
+services:
+  engine:
+    build:
+      context: .
+      dockerfile: resources/engine.dockerfile
+    container_name: ogaden-engine
+    environment:
+      - MEMCACHED_HOST=memcached
+      - MEMCACHED_PORT=11211
+    env_file:
+      - .env
+    depends_on:
+      - memcached
+    restart: always
+    networks:
+      - ogaden-network
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: resources/dashboard.dockerfile
+    container_name: ogaden-dashboard
+    environment:
+      - MEMCACHED_HOST=memcached
+      - MEMCACHED_PORT=11211
+    env_file:
+      - .env
+    ports:
+      - 3502:3502
+    depends_on:
+      - memcached
+    restart: always
+    networks:
+      - ogaden-network
+
+  memcached:
+    image: memcached:1.6.34
+    container_name: ogaden-memcached
+    restart: always
+    networks:
+      - ogaden-network
+
+networks:
+  ogaden-network:
+    name: ogaden-network
+    driver: bridge

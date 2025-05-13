@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.4/socket.io.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            width: 80%;
+            margin: 16px auto;
+            background: #fff;
+            padding: 16px;
+            box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background: #f2f2f2;
+        }
+        tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dashboard</h1>
+        <table id="dashboard-table">
+            <thead>
+                <tr>
+                    <th>Field</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Os dados serão atualizados aqui via WebSocket -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const socket = io();
+
+        socket.on("update", (data) => {
+            const tableBody = document.querySelector("#dashboard-table tbody");
+            tableBody.innerHTML = ""; // Limpa o conteúdo antigo
+
+            for (const [key, value] of Object.entries(data)) {
+                const row = document.createElement("tr");
+                row.innerHTML = `<td>${key}</td><td>${value}</td>`;
+                tableBody.appendChild(row);
+            }
+        });
+    </script>
+</body>
+</html>
