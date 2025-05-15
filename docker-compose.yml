@@ -2,7 +2,7 @@ services:
   engine:
     build:
       context: .
-      dockerfile: resources/engine.dockerfile
+      dockerfile: res/engine/dockerfile
     container_name: ogaden-engine
     environment:
       - MEMCACHED_HOST=memcached
@@ -18,7 +18,7 @@ services:
   dashboard:
     build:
       context: .
-      dockerfile: resources/dashboard.dockerfile
+      dockerfile: res/dashboard/dockerfile
     container_name: ogaden-dashboard
     environment:
       - MEMCACHED_HOST=memcached

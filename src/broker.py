@@ -194,9 +194,31 @@ class Broker(Loader):
         self.data["fast_ema"] = ta.trend.EMAIndicator(close=self.data["close"], window=self.FAST_EMA).ema_indicator()
         self.data["slow_ema"] = ta.trend.EMAIndicator(close=self.data["close"], window=self.SLOW_EMA).ema_indicator()
 
+    def calculate_ema_trend(self):
+
+        self.data["trend_ema"] = ta.trend.EMAIndicator(close=self.data["close"], window=self.TREND_EMA).ema_indicator()
+
     def calculate_ema_signal(self):
 
-        self.data["signal_ema"] = self.data.apply(lambda row: "BUY" if row["fast_ema"] > row["slow_ema"] else "SELL" if row["fast_ema"] < row["slow_ema"] else "HOLD", axis=1)
+        self.data["signal_ema"] = "HOLD"
+
+        for i in range(1, len(self.data)):
+
+            if (self.data["fast_ema"].iloc[i] > self.data["slow_ema"].iloc[i] and self.data["fast_ema"].iloc[i-1] <= self.data["slow_ema"].iloc[i-1]):
+                self.data.at[i, "signal_ema"] = "BUY"
+            elif (self.data["fast_ema"].iloc[i] < self.data["slow_ema"].iloc[i] and self.data["fast_ema"].iloc[i-1] >= self.data["slow_ema"].iloc[i-1]):
+                self.data.at[i, "signal_ema"] = "SELL"
+
+    def calculate_ema_signal_trend(self):
+
+        self.data["signal_ema_trend"] = "HOLD"
+
+        for i in range(1, len(self.data)):
+
+            if (self.data["fast_ema"].iloc[i] > self.data["slow_ema"].iloc[i] and self.data["close"].iloc[i] > self.data["trend_ema"].iloc[i]):
+                self.data.at[i, "signal_ema_trend"] = "BUY"
+            elif (self.data["fast_ema"].iloc[i] < self.data["slow_ema"].iloc[i] and self.data["close"].iloc[i] < self.data["trend_ema"].iloc[i]):
+                self.data.at[i, "signal_ema_trend"] = "SELL"
 
     def calculate_rsi(self):
 

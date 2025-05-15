@@ -27,13 +27,15 @@ class Loader:
 
         self.INTERVAL = os.getenv("INTERVAL", "15m")
 
-        self.LIMIT = int(os.getenv("LIMIT", 1000))
+        self.LIMIT = int(os.getenv("LIMIT", 500))
 
         self.FAST_SMA = int(os.getenv("FAST_SMA", 7))
-        self.SLOW_SMA = int(os.getenv("SLOW_SMA", 25))
+        self.SLOW_SMA = int(os.getenv("SLOW_SMA", 14))
+        self.TREND_SMA = int(os.getenv("TREND_SMA", 50))
 
         self.FAST_EMA = int(os.getenv("FAST_EMA", 7))
-        self.SLOW_EMA = int(os.getenv("SLOW_EMA", 25))
+        self.SLOW_EMA = int(os.getenv("SLOW_EMA", 14))
+        self.TREND_EMA = int(os.getenv("TREND_EMA", 50))
 
         self.RSI_PERIOD = int(os.getenv("RSI_PERIOD", 14))
 

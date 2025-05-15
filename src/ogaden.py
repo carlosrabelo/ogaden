@@ -14,6 +14,9 @@ if __name__ == "__main__":
     trader.calculate_ema()
     trader.calculate_ema_signal()
 
+    trader.calculate_ema_trend()
+    trader.calculate_ema_signal_trend()
+
     trader.calculate_rsi()
     trader.calculate_rsi_signal()
 
