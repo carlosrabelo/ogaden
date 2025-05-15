@@ -236,7 +236,7 @@ class Trader(Broker):
             "symbol": self.SYMBOL,
             "interval": self.INTERVAL,
             "position": self.POSITION,
-            "signal": f"{self.SIGNAL_RSI} / {self.RSI:.2f}",
+            "signal": f"{self.SIGNAL_EMA} / {self.SIGNAL_EMA_TREND} / {self.SIGNAL_RSI}",
             "base_balance": f"{self.BASE_BALANCE:.8f}",
             "quote_balance": f"{self.QUOTE_BALANCE:8f}",
             "base_quote_balance": f"{self.BASE_QUOTE_BALANCE:.8f}",
