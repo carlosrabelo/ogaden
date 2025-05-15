@@ -116,6 +116,8 @@ class Trader(Broker):
         self.SIGNAL_EMA = self.data["signal_ema"].iloc[-1]
         self.SIGNAL_RSI = self.data["signal_rsi"].iloc[-1]
 
+        self.SIGNAL_EMA_TREND = self.data["signal_ema_trend"].iloc[-1]
+
         if self.can_buy():
 
             self.execute_buy()
@@ -139,7 +141,7 @@ class Trader(Broker):
         if self.POSITION != "BUY":
             return False
 
-        return (self.SIGNAL_EMA == "BUY" or self.SIGNAL_RSI == "BUY") and self.SIGINAL_EMA_TREND == "BUY"
+        return (self.SIGNAL_EMA == "BUY" or self.SIGNAL_RSI == "BUY") and self.SIGNAL_EMA_TREND == "BUY"
 
     def can_sell(self):
 
