@@ -31,6 +31,7 @@ class Trader(Broker):
 
         self.SIGNAL_EMA = "HOLD"
         self.SIGNAL_RSI = "HOLD"
+        self.SIGNAL_EMA_TREND = "HOLD"
 
     # region
 
@@ -220,7 +221,7 @@ class Trader(Broker):
         print(f"SYMBOL             : {self.SYMBOL}")
         print(f"INTERVAL           : {self.INTERVAL}")
         print(f"POSITION           : {self.POSITION}")
-        print(f"SIGNAL             : {self.SIGNAL_RSI} / {self.RSI:.2f}")
+        print(f"SIGNAL             : {self.SIGNAL_EMA} / {self.SIGNAL_EMA_TREND} / {self.SIGNAL_RSI}")
         print(f"BASE_BALANCE       : {self.BASE_BALANCE:.8f}")
         print(f"QUOTE_BALANCE      : {self.QUOTE_BALANCE:.8f}")
         print(f"BASE_QUOTE_BALANCE : {self.BASE_QUOTE_BALANCE:.8f}")
