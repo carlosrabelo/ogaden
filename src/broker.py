@@ -1,7 +1,8 @@
+from decimal import Decimal, InvalidOperation, ROUND_DOWN
+
 from binance.client import Client
 
 import pandas as pd
-import numpy as np
 import ta
 
 from loader import Loader
@@ -90,9 +91,9 @@ class Broker(Loader):
 
         self.CURRENT_PRICE = self.fetch_current_price(self.SYMBOL)
 
-        self.MINIMUM_NOTIONAL = self.fetch_minimum_notional(self.SYMBOL)
+        self.MIN_NOTIONAL = self.fetch_minimum_notional(self.SYMBOL)
         self.STEP_SIZE = self.fetch_step_size(self.SYMBOL)
-        self.MINIMUM_QUANTITY = self.fetch_minimum_quantity(self.SYMBOL)
+        self.MIN_QUANTITY = self.fetch_minimum_quantity(self.SYMBOL)
 
     def fetch_balance(self, asset) -> float:
 
@@ -240,13 +241,23 @@ class Broker(Loader):
 
         current_price = self.CURRENT_PRICE
 
-        calculated_quantity = available_quote / current_price
+        if current_price <= 0:
+            print("Invalid current price returned by exchange; skipping buy order.")
+            return False
 
         step_size = self.STEP_SIZE
 
-        calculated_quantity = (calculated_quantity // step_size) * step_size
+        if step_size <= 0:
+            print("Invalid step size configuration; skipping buy order.")
+            return False
 
-        minimum_quantity = self.MINIMUM_QUANTITY
+        calculated_quantity = self._apply_step_size(available_quote / current_price, step_size)
+
+        if calculated_quantity <= 0:
+            print("Calculated quantity is zero after applying step size; skipping buy order.")
+            return False
+
+        minimum_quantity = self.MIN_QUANTITY
 
         if calculated_quantity < minimum_quantity:
             print(f"Calculated quantity ({calculated_quantity}) is below the minimum allowed ({minimum_quantity}).")
@@ -271,7 +282,7 @@ class Broker(Loader):
 
         available_base = self.BASE_BALANCE
 
-        minimum_quantity = self.MINIMUM_QUANTITY
+        minimum_quantity = self.MIN_QUANTITY
 
         if available_base < minimum_quantity:
             print(f"Insufficient base balance: {available_base} is below the minimum allowed quantity of {minimum_quantity}.")
@@ -279,13 +290,25 @@ class Broker(Loader):
 
         step_size = self.STEP_SIZE
 
-        calculated_quantity = (available_base // step_size) * step_size
+        if step_size <= 0:
+            print("Invalid step size configuration; skipping sell order.")
+            return False
+
+        calculated_quantity = self._apply_step_size(available_base, step_size)
 
         if calculated_quantity < minimum_quantity:
             print(f"Calculated quantity ({calculated_quantity}) is below the minimum allowed ({minimum_quantity}).")
             return False
 
+        if calculated_quantity <= 0:
+            print("Calculated quantity is zero after applying step size; skipping sell order.")
+            return False
+
         current_price = self.CURRENT_PRICE
+
+        if current_price <= 0:
+            print("Invalid current price returned by exchange; skipping sell order.")
+            return False
 
         if self.SANDBOX:
             total_sale_value = calculated_quantity * current_price
@@ -301,3 +324,21 @@ class Broker(Loader):
         print(f"Executed sell: {calculated_quantity:.6f} {self.BASE_ASSET} at {current_price}")
 
         return True
+
+    def _apply_step_size(self, quantity: float, step_size: float) -> float:
+        try:
+            quantity_decimal = Decimal(str(quantity))
+            step_decimal = Decimal(str(step_size))
+        except InvalidOperation:
+            return 0.0
+
+        if quantity_decimal <= 0 or step_decimal <= 0:
+            return 0.0
+
+        normalized_steps = (quantity_decimal / step_decimal).to_integral_value(rounding=ROUND_DOWN)
+        normalized_quantity = normalized_steps * step_decimal
+
+        if normalized_quantity <= 0:
+            return 0.0
+
+        return float(normalized_quantity)

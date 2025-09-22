@@ -103,6 +103,12 @@ class Trader(Broker):
 
         self.fetch_data()
 
+        if self.data.empty or self.data["close"].isna().all():
+            print()
+            print("No market data available; skipping this cycle.")
+            time.sleep(60)
+            return
+
         self.calculate_rsi()
         self.calculate_rsi_signal()
 
@@ -204,8 +210,12 @@ class Trader(Broker):
             if trailing_balance > self.TRAILING_BALANCE:
                 self.TRAILING_BALANCE = trailing_balance
 
-            self.DIFFERENCE_PRICE_V = self.CURRENT_PRICE - self.PURCHASE_PRICE
-            self.DIFFERENCE_PRICE_P = self.DIFFERENCE_PRICE_V / self.PURCHASE_PRICE * 100.0
+            if self.PURCHASE_PRICE > 0:
+                self.DIFFERENCE_PRICE_V = self.CURRENT_PRICE - self.PURCHASE_PRICE
+                self.DIFFERENCE_PRICE_P = self.DIFFERENCE_PRICE_V / self.PURCHASE_PRICE * 100.0
+            else:
+                self.DIFFERENCE_PRICE_V = 0.0
+                self.DIFFERENCE_PRICE_P = 0.0
 
     def status(self):
 
@@ -221,7 +231,7 @@ class Trader(Broker):
         print(f"SYMBOL             : {self.SYMBOL}")
         print(f"INTERVAL           : {self.INTERVAL}")
         print(f"POSITION           : {self.POSITION}")
-        print(f"SIGNAL             : {self.SIGNAL_EMA} / {self.SIGNAL_EMA_TREND} / {self.SIGNAL_RSI}")
+        print(f"SIGNAL             : {self.SIGNAL_EMA} / {self.SIGNAL_RSI} / {self.SIGNAL_EMA_TREND}")
         print(f"BASE_BALANCE       : {self.BASE_BALANCE:.8f}")
         print(f"QUOTE_BALANCE      : {self.QUOTE_BALANCE:.8f}")
         print(f"BASE_QUOTE_BALANCE : {self.BASE_QUOTE_BALANCE:.8f}")
@@ -236,7 +246,7 @@ class Trader(Broker):
             "symbol": self.SYMBOL,
             "interval": self.INTERVAL,
             "position": self.POSITION,
-            "signal": f"{self.SIGNAL_EMA} / {self.SIGNAL_EMA_TREND} / {self.SIGNAL_RSI}",
+            "signal": f"{self.SIGNAL_EMA} / {self.SIGNAL_RSI} / {self.SIGNAL_EMA_TREND}",
             "base_balance": f"{self.BASE_BALANCE:.8f}",
             "quote_balance": f"{self.QUOTE_BALANCE:8f}",
             "base_quote_balance": f"{self.BASE_QUOTE_BALANCE:.8f}",
