@@ -28,6 +28,7 @@ MEMCACHE_KEYS = [
     "current_price",
     "purchase_price",
     "difference_price",
+    "difference_price_p",
     "cycle",
     # Risk management config
     "position_size_pct",

@@ -100,6 +100,16 @@
             50%       { opacity: 0.4; }
         }
 
+        @keyframes chart-flash {
+            0%   { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0.4); }
+            50%  { box-shadow: 0 0 0 6px rgba(88, 166, 255, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(88, 166, 255, 0); }
+        }
+        .chart-wrap.flash {
+            animation: chart-flash 0.4s ease-out;
+            border-radius: var(--radius);
+        }
+
         /* ── Layout ──────────────────────────────────────── */
         main {
             padding: 20px 24px;
@@ -252,6 +262,9 @@
             font-size: 11px;
             color: var(--muted);
         }
+
+        .update-row.stale-warn { color: var(--orange); }
+        .update-row.stale-dead { color: var(--red); }
 
         /* ── No data state ───────────────────────────────── */
         .placeholder {
@@ -423,11 +436,16 @@
 </main>
 
 <script>
+const DEBUG = false; // set true to enable verbose console logging
+
 // ── Connection ─────────────────────────────────────────────
 const socket = io();
 const connDot      = document.getElementById('conn-dot');
 const connLabel    = document.getElementById('conn-label');
-let lastHeartbeat  = null;
+const updRow       = document.querySelector('.update-row');
+let lastHeartbeat   = null;
+let lastUpdateEpoch = null;
+let lastChartDate   = null;
 
 socket.on('connect', () => {
     connDot.className   = 'dot live';
@@ -511,7 +529,7 @@ function pnlSign(v) {
 
 // ── Update handler ─────────────────────────────────────────
 socket.on('update', function(data) {
-    console.log('[dashboard] received data:', JSON.stringify(data, null, 2));
+    if (DEBUG) console.log('[dashboard] received data:', JSON.stringify(data, null, 2));
 
     // Header meta
     if (data.symbol)   setText('hdr-symbol',   data.symbol,   'pill pill-blue');
@@ -529,7 +547,7 @@ socket.on('update', function(data) {
     }
 
     // P&L
-    updatePnl(data.difference_price);
+    updatePnl(data.difference_price, data.difference_price_p);
 
     // Position
     updatePosition(data.position, data.signal);
@@ -570,8 +588,20 @@ socket.on('update', function(data) {
     if (data.update_time) {
         updDot.className = 'dot live';
         updTime.textContent = 'Last update: ' + data.update_time;
+        lastUpdateEpoch = Date.now();
+        updRow.classList.remove('stale-warn', 'stale-dead');
     }
 });
+
+// ── Staleness ticker ───────────────────────────────────────
+setInterval(() => {
+    if (lastUpdateEpoch === null) return;
+    const age = Math.floor((Date.now() - lastUpdateEpoch) / 1000);
+    document.getElementById('update_time').textContent = 'Last update: ' + age + 's ago';
+    if      (age > 30) updRow.className = 'update-row stale-dead';
+    else if (age > 10) updRow.className = 'update-row stale-warn';
+    else               updRow.className = 'update-row';
+}, 1000);
 
 function setText(id, text, className) {
     const el = document.getElementById(id);
@@ -591,7 +621,7 @@ function updateStrategy(strategy) {
     el.className = map[strategy.toLowerCase()] || 'pill pill-muted';
 }
 
-function updatePnl(val) {
+function updatePnl(val, pct) {
     const card  = document.getElementById('pnl-card');
     const valEl = document.getElementById('difference_price');
     const sub   = document.getElementById('pnl-sub');
@@ -606,7 +636,7 @@ function updatePnl(val) {
     valEl.textContent = pnlSign(val) + fmtPrice(val);
     valEl.className   = 'card-value ' + (isPos ? 'positive' : 'negative');
     card.className    = 'card card-pnl ' + (isPos ? 'positive' : 'negative');
-    sub.textContent   = isPos ? 'In profit' : 'In loss';
+    sub.textContent   = (isPos ? 'In profit' : 'In loss') + (pct ? '  ' + pct : '');
 }
 
 function updatePosition(pos, signal) {
@@ -619,16 +649,16 @@ function updatePosition(pos, signal) {
     const up = pos.toUpperCase();
     if (up === 'SELL') {
         // Holding base asset, waiting to sell
-        badge.textContent  = '▲ ' + pos;
+        badge.textContent  = '▲ HOLDING';
         badge.style.color  = 'var(--green)';
         card.className     = 'card card-position long';
-        sub.textContent    = 'Holding base asset';
+        sub.textContent    = 'ready to sell';
     } else if (up === 'BUY') {
         // Holding quote asset, waiting to buy
-        badge.textContent  = '▽ ' + pos;
+        badge.textContent  = '▽ WAITING';
         badge.style.color  = 'var(--muted)';
         card.className     = 'card card-position';
-        sub.textContent    = 'Waiting to buy';
+        sub.textContent    = 'ready to buy';
     } else {
         badge.textContent  = pos;
         badge.style.color  = 'var(--muted)';
