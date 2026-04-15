@@ -537,6 +537,9 @@ class Trader(Broker):
                 f"{self.difference_price_v:.8f} / {self.difference_price_p:.4f}"
             ),
             "cycle": str(self.metrics.cycles),
+            # Heartbeat: only written after a real API fetch (quiet=False).
+            # The dashboard uses this to gate chart updates — one point per cycle.
+            **({"price_heartbeat": str(self.metrics.cycles)} if not quiet else {}),
             # Risk management config
             "position_size_pct": f"{self.POSITION_SIZE_PCT:.0f}%",
             "atr_stop_mult": f"{self.ATR_STOP_MULTIPLIER:.1f}",

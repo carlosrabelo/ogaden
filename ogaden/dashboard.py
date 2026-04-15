@@ -38,6 +38,7 @@ MEMCACHE_KEYS = [
     "stop_loss",
     "take_profit",
     "trend_ema_value",
+    "price_heartbeat",
 ]
 
 # Default poll interval: 2 seconds (5x faster than previous 10s).

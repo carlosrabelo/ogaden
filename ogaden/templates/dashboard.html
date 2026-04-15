@@ -425,9 +425,9 @@
 <script>
 // ── Connection ─────────────────────────────────────────────
 const socket = io();
-const connDot   = document.getElementById('conn-dot');
-const connLabel = document.getElementById('conn-label');
-let lastCycle   = null;
+const connDot      = document.getElementById('conn-dot');
+const connLabel    = document.getElementById('conn-label');
+let lastHeartbeat  = null;
 
 socket.on('connect', () => {
     connDot.className   = 'dot live';
@@ -696,11 +696,10 @@ function updateBalance(id, val, fmtFn, assetHint) {
 function updateChart(data) {
     if (!data.current_price || !data.update_time) return;
 
-    const currentCycle = data.cycle;
-    if (currentCycle && lastCycle === currentCycle) {
-        return;
-    }
-    lastCycle = currentCycle;
+    // price_heartbeat is written by the engine only after a real API fetch.
+    // No heartbeat (or same heartbeat) means nothing new to plot.
+    if (!data.price_heartbeat || lastHeartbeat === data.price_heartbeat) return;
+    lastHeartbeat = data.price_heartbeat;
 
     const label = data.update_time.split(' ')[1] || data.update_time;
     priceChart.data.labels.push(label);
