@@ -1,0 +1,16 @@
+{
+    "python.envFile": "",
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true,
+    "[python]": {
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit",
+            "source.organizeImports.ruff": "explicit"
+        }
+    },
+    "ruff.lineLength": 88,
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.venv": true
+    }
+}

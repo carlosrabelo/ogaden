@@ -1,0 +1,90 @@
+services:
+  engine:
+    image: carlosrabelo/ogaden-engine:latest
+    environment:
+      - API_KEY=${API_KEY:-}
+      - API_SECRET=${API_SECRET:-}
+      - SANDBOX=${SANDBOX:-true}
+      - BASE_ASSET=${BASE_ASSET:-BTC}
+      - QUOTE_ASSET=${QUOTE_ASSET:-USDT}
+      - INTERVAL=${INTERVAL:-15m}
+      - LIMIT=${LIMIT:-500}
+      - TIMEZONE=${TIMEZONE:-America/Cuiaba}
+      - BASE_BALANCE=${BASE_BALANCE:-0.0}
+      - QUOTE_BALANCE=${QUOTE_BALANCE:-10.0}
+      - STRATEGY_MODE=${STRATEGY_MODE:-balanced}
+      - POSITION_SIZE_PCT=${POSITION_SIZE_PCT:-25.0}
+      - TREND_FILTER_EMA=${TREND_FILTER_EMA:-100}
+      - COOLDOWN_CYCLES=${COOLDOWN_CYCLES:-5}
+      - MIN_TRADE_MARGIN_PCT=${MIN_TRADE_MARGIN_PCT:-0.3}
+      - ATR_STOP_MULTIPLIER=${ATR_STOP_MULTIPLIER:-2.0}
+      - PROFIT_THRESHOLD=${PROFIT_THRESHOLD:-0.0}
+      - LOSS_THRESHOLD=${LOSS_THRESHOLD:-0.0}
+      - TRAILING_THRESHOLD=${TRAILING_THRESHOLD:-0.0}
+      - FAST_SMA=${FAST_SMA:-7}
+      - SLOW_SMA=${SLOW_SMA:-14}
+      - TREND_SMA=${TREND_SMA:-50}
+      - FAST_EMA=${FAST_EMA:-7}
+      - SLOW_EMA=${SLOW_EMA:-14}
+      - TREND_EMA=${TREND_EMA:-50}
+      - RSI_PERIOD=${RSI_PERIOD:-14}
+      - RSI_BUY_THRESHOLD=${RSI_BUY_THRESHOLD:-40}
+      - RSI_SELL_THRESHOLD=${RSI_SELL_THRESHOLD:-60}
+      - MEMCACHED_HOST=memcached
+      - MEMCACHED_PORT=11211
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      memcached:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - ogaden-network
+    volumes:
+      - ogaden_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-m", "ogaden.healthcheck"]
+      interval: 60s
+      timeout: 30s
+      start_period: 30s
+      retries: 5
+
+  dashboard:
+    image: carlosrabelo/ogaden-dashboard:latest
+    environment:
+      - MEMCACHED_HOST=memcached
+      - MEMCACHED_PORT=11211
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      memcached:
+        condition: service_healthy
+    ports:
+      - "3501:3501"
+    restart: unless-stopped
+    networks:
+      - ogaden-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3501/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+
+  memcached:
+    image: memcached:1.6.34-alpine
+    restart: unless-stopped
+    networks:
+      - ogaden-network
+    healthcheck:
+      test: ["CMD", "echo", "stats"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+networks:
+  ogaden-network:
+    driver: bridge
+
+volumes:
+  ogaden_data:
+    driver: local

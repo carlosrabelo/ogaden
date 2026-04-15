@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ogaden</title>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg:        #0d1117;
+            --surface:   #161b22;
+            --border:    #21262d;
+            --muted:     #8b949e;
+            --text:      #e6edf3;
+            --green:     #3fb950;
+            --green-dim: #1a3a23;
+            --red:       #f85149;
+            --red-dim:   #3a1a1a;
+            --yellow:    #d29922;
+            --blue:      #58a6ff;
+            --blue-dim:  #1a2a3a;
+            --orange:    #f0883e;
+            --accent:    #388bfd;
+            --radius:    6px;
+            --mono:      'SFMono-Regular', 'Consolas', 'Liberation Mono', monospace;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        /* ── Header ─────────────────────────────────────── */
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 24px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .brand {
+            font-family: var(--mono);
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: var(--text);
+        }
+
+        .brand span { color: var(--accent); }
+
+        .header-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-family: var(--mono);
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 8px;
+            border-radius: 99px;
+            font-size: 11px;
+            font-weight: 600;
+            font-family: var(--mono);
+        }
+
+        .pill-blue  { background: var(--blue-dim);  color: var(--blue);  border: 1px solid #2d4a6e; }
+        .pill-green { background: var(--green-dim); color: var(--green); border: 1px solid #1e4d2b; }
+        .pill-red   { background: var(--red-dim);   color: var(--red);   border: 1px solid #5a1e1a; }
+        .pill-muted { background: #1c2128;           color: var(--muted); border: 1px solid var(--border); }
+        .pill-orange{ background: #2d1f0e;           color: var(--orange);border: 1px solid #5a3a1a; }
+
+        .dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--muted);
+            display: inline-block;
+        }
+        .dot.live   { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+        .dot.dead   { background: var(--red); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.4; }
+        }
+
+        /* ── Layout ──────────────────────────────────────── */
+        main {
+            padding: 20px 24px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .grid-top {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .grid-mid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .grid-bottom {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        /* ── Cards ───────────────────────────────────────── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+        }
+
+        .card-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+
+        .card-value {
+            font-family: var(--mono);
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: -0.01em;
+        }
+
+        .card-sub {
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        /* ── Price card (hero) ───────────────────────────── */
+        .card-price {
+            border-left: 3px solid var(--blue);
+        }
+
+        .card-price .card-value {
+            font-size: 32px;
+            color: var(--blue);
+        }
+
+        /* ── P&L card ────────────────────────────────────── */
+        .card-pnl { border-left: 3px solid var(--muted); }
+        .card-pnl.positive { border-left-color: var(--green); }
+        .card-pnl.negative { border-left-color: var(--red); }
+
+        .card-pnl .card-value.positive { color: var(--green); }
+        .card-pnl .card-value.negative { color: var(--red); }
+
+        /* ── Position card ───────────────────────────────── */
+        .card-position { border-left: 3px solid var(--muted); }
+        .card-position.long  { border-left-color: var(--green); }
+        .card-position.short { border-left-color: var(--red); }
+
+        .position-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: var(--mono);
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        /* ── Chart card ──────────────────────────────────── */
+        .card-chart { padding: 16px; }
+
+        .chart-wrap {
+            position: relative;
+            height: 240px;
+        }
+
+        /* ── Signal card ─────────────────────────────────── */
+        .signal-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+            margin-top: 4px;
+        }
+
+        .sig-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 8px;
+            border-radius: 4px;
+            background: #0d1117;
+            border: 1px solid var(--border);
+            font-family: var(--mono);
+            font-size: 11px;
+        }
+
+        .sig-name { color: var(--muted); }
+
+        .sig-val {
+            font-weight: 700;
+            font-size: 11px;
+        }
+
+        .sig-val.buy  { color: var(--green); }
+        .sig-val.sell { color: var(--red); }
+        .sig-val.hold { color: var(--muted); }
+
+        /* ── Balance cards ───────────────────────────────── */
+        .card-balance { border-left: 3px solid var(--border); }
+
+        /* ── Strategy badge ──────────────────────────────── */
+        .strategy-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+
+        /* ── Last update ─────────────────────────────────── */
+        .update-row {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            margin-top: 8px;
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        /* ── No data state ───────────────────────────────── */
+        .placeholder {
+            color: var(--muted);
+            font-family: var(--mono);
+        }
+
+        @media (max-width: 900px) {
+            .grid-top    { grid-template-columns: 1fr 1fr; }
+            .grid-mid    { grid-template-columns: 1fr; }
+            .grid-bottom { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 550px) {
+            .grid-top    { grid-template-columns: 1fr; }
+            .grid-bottom { grid-template-columns: 1fr; }
+            header       { flex-direction: column; gap: 8px; align-items: flex-start; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────── -->
+<header>
+    <div class="brand">OGA<span>DEN</span></div>
+    <div class="header-meta">
+        <span id="hdr-symbol" class="pill pill-blue">—</span>
+        <span id="hdr-interval" class="pill pill-muted">—</span>
+        <span id="hdr-strategy" class="pill pill-muted">—</span>
+        <span>
+            <span class="dot" id="conn-dot"></span>
+            <span id="conn-label" style="margin-left:4px">connecting…</span>
+        </span>
+    </div>
+</header>
+
+<!-- ── Main ───────────────────────────────────────────────── -->
+<main>
+
+    <!-- Row 1: Price · P&L · Position · Action -->
+    <div class="grid-top" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
+
+        <div class="card card-price">
+            <div class="card-label">Current Price</div>
+            <div class="card-value placeholder" id="current_price">—</div>
+            <div class="card-sub" id="purchase_price_sub"></div>
+        </div>
+
+        <div class="card card-pnl" id="pnl-card">
+            <div class="card-label">P&amp;L vs Purchase</div>
+            <div class="card-value placeholder" id="difference_price">—</div>
+            <div class="card-sub" id="pnl-sub"></div>
+        </div>
+
+        <div class="card card-position" id="pos-card">
+            <div class="card-label">Position</div>
+            <div class="position-badge placeholder" id="position">—</div>
+            <div class="card-sub" id="pos-sub"></div>
+        </div>
+
+        <div class="card" id="action-card">
+            <div class="card-label">Last Action</div>
+            <div class="card-value placeholder" id="action">—</div>
+            <div class="card-sub" id="action-sub"></div>
+        </div>
+
+    </div>
+
+    <!-- Row 2: Chart · Signals -->
+    <div class="grid-mid">
+
+        <div class="card card-chart">
+            <div class="card-label">Price History</div>
+            <div class="chart-wrap">
+                <canvas id="priceChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Indicator Signals</div>
+            <div class="signal-grid" id="signal-grid">
+                <div class="sig-item"><span class="sig-name">EMA</span><span class="sig-val hold">—</span></div>
+                <div class="sig-item"><span class="sig-name">RSI</span><span class="sig-val hold">—</span></div>
+                <div class="sig-item"><span class="sig-name">TREND</span><span class="sig-val hold">—</span></div>
+                <div class="sig-item"><span class="sig-name">VOL</span><span class="sig-val hold">—</span></div>
+                <div class="sig-item"><span class="sig-name">MACD</span><span class="sig-val hold">—</span></div>
+                <div class="sig-item"><span class="sig-name">BB</span><span class="sig-val hold">—</span></div>
+                <div class="sig-item"><span class="sig-name">STOCH</span><span class="sig-val hold">—</span></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Row 3: Balances -->
+    <div class="grid-bottom">
+
+        <div class="card card-balance">
+            <div class="card-label">Base Balance</div>
+            <div class="card-value placeholder" id="base_balance">—</div>
+            <div class="card-sub" id="base_balance_sub"></div>
+        </div>
+
+        <div class="card card-balance">
+            <div class="card-label">Quote Balance</div>
+            <div class="card-value placeholder" id="quote_balance">—</div>
+            <div class="card-sub">Available to trade</div>
+        </div>
+
+        <div class="card card-balance">
+            <div class="card-label">Total (in Quote)</div>
+            <div class="card-value placeholder" id="base_quote_balance">—</div>
+            <div class="card-sub">Base × price + quote</div>
+        </div>
+
+        <div class="card card-balance">
+            <div class="card-label">Expected / Trailing</div>
+            <div class="card-value placeholder" id="expected_balance">—</div>
+            <div class="card-sub" id="trailing_sub"></div>
+        </div>
+
+    </div>
+
+    <!-- Row 4: Risk Management Config -->
+    <div class="grid-bottom">
+
+        <div class="card">
+            <div class="card-label">Position Size</div>
+            <div class="card-value placeholder" id="position_size_pct">—</div>
+            <div class="card-sub">of balance per trade</div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Stop-Loss</div>
+            <div class="card-value placeholder" id="stop_loss">—</div>
+            <div class="card-sub">ATR × <span id="atr_stop_mult">—</span></div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Take-Profit</div>
+            <div class="card-value placeholder" id="take_profit">—</div>
+            <div class="card-sub">2:1 reward ratio</div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Trend Filter</div>
+            <div class="card-value placeholder" id="trend_ema_value">—</div>
+            <div class="card-sub">EMA(<span id="trend_filter_ema">—</span>)</div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Min Margin</div>
+            <div class="card-value placeholder" id="min_trade_margin_pct">—</div>
+            <div class="card-sub">min expected move</div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Cooldown</div>
+            <div class="card-value placeholder" id="cooldown_remaining">—</div>
+            <div class="card-sub">cycles after loss</div>
+        </div>
+
+    </div>
+
+    <div class="update-row">
+        <span class="dot" id="upd-dot"></span>
+        <span id="update_time">Waiting for data…</span>
+    </div>
+
+</main>
+
+<script>
+// ── Connection ─────────────────────────────────────────────
+const socket = io();
+const connDot   = document.getElementById('conn-dot');
+const connLabel = document.getElementById('conn-label');
+let lastCycle   = null;
+
+socket.on('connect', () => {
+    connDot.className   = 'dot live';
+    connLabel.textContent = 'live';
+});
+socket.on('disconnect', () => {
+    connDot.className   = 'dot dead';
+    connLabel.textContent = 'disconnected';
+});
+
+// ── Chart ──────────────────────────────────────────────────
+const ctx = document.getElementById('priceChart').getContext('2d');
+const priceChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: [],
+        datasets: [{
+            label: 'Price',
+            data: [],
+            borderColor: '#58a6ff',
+            backgroundColor: 'rgba(88, 166, 255, 0.06)',
+            borderWidth: 1.5,
+            pointRadius: 2,
+            pointBackgroundColor: '#58a6ff',
+            fill: true,
+            tension: 0.3,
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        plugins: {
+            legend: { display: false },
+            tooltip: {
+                backgroundColor: '#161b22',
+                borderColor: '#21262d',
+                borderWidth: 1,
+                titleColor: '#8b949e',
+                bodyColor: '#e6edf3',
+                bodyFont: { family: 'SFMono-Regular, Consolas, monospace', size: 12 },
+            }
+        },
+        scales: {
+            x: {
+                ticks: { color: '#8b949e', font: { family: 'monospace', size: 10 }, maxTicksLimit: 8 },
+                grid:  { color: '#21262d' }
+            },
+            y: {
+                position: 'right',
+                ticks: { color: '#8b949e', font: { family: 'monospace', size: 10 } },
+                grid:  { color: '#21262d' }
+            }
+        }
+    }
+});
+
+// ── Helpers ────────────────────────────────────────────────
+function fmt(v, decimals = 2) {
+    const n = parseFloat(v);
+    if (isNaN(n)) return v || '—';
+    return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function fmtPrice(v) { return fmt(v, 2); }
+function fmtBal(v)   { return fmt(v, 8); }
+
+function signClass(str) {
+    if (!str) return '';
+    const s = str.toString().toUpperCase().trim();
+    if (s === 'BUY')  return 'buy';
+    if (s === 'SELL') return 'sell';
+    return 'hold';
+}
+
+function pnlSign(v) {
+    const n = parseFloat(v);
+    if (isNaN(n)) return '';
+    return n >= 0 ? '+' : '';
+}
+
+// ── Update handler ─────────────────────────────────────────
+socket.on('update', function(data) {
+    console.log('[dashboard] received data:', JSON.stringify(data, null, 2));
+
+    // Header meta
+    if (data.symbol)   setText('hdr-symbol',   data.symbol,   'pill pill-blue');
+    if (data.interval) setText('hdr-interval',  data.interval, 'pill pill-muted');
+    if (data.strategy) updateStrategy(data.strategy);
+
+    // Price
+    const priceEl = document.getElementById('current_price');
+    priceEl.textContent = data.current_price ? fmtPrice(data.current_price) : '—';
+    priceEl.classList.remove('placeholder');
+
+    if (data.purchase_price) {
+        document.getElementById('purchase_price_sub').textContent =
+            'Entry: ' + fmtPrice(data.purchase_price);
+    }
+
+    // P&L
+    updatePnl(data.difference_price);
+
+    // Position
+    updatePosition(data.position, data.signal);
+
+    // Action
+    if (data.action) updateAction(data.action);
+
+    // Signals
+    if (data.signal) updateSignals(data.signal);
+
+    // Balances
+    updateBalance('base_balance',       data.base_balance,       fmtBal,   data.symbol ? data.symbol.replace('USDT','').replace('BTC','') : '');
+    updateBalance('quote_balance',      data.quote_balance,      fmtPrice, '');
+    updateBalance('base_quote_balance', data.base_quote_balance, fmtPrice, '');
+    updateBalance('expected_balance',   data.expected_balance,   fmtPrice, '');
+
+    if (data.trailing_balance) {
+        document.getElementById('trailing_sub').textContent =
+            'Trailing: ' + fmtPrice(data.trailing_balance);
+    }
+
+    // Risk management config
+    setText('position_size_pct',    data.position_size_pct,    'card-value');
+    setText('atr_stop_mult',        data.atr_stop_mult,        '');
+    setText('stop_loss',            data.stop_loss,            'card-value');
+    setText('take_profit',          data.take_profit,          'card-value');
+    setText('trend_ema_value',      data.trend_ema_value,      'card-value');
+    setText('trend_filter_ema',     data.trend_filter_ema,     '');
+    setText('min_trade_margin_pct', data.min_trade_margin_pct, 'card-value');
+    setText('cooldown_remaining',   data.cooldown_remaining,   'card-value');
+
+    // Chart
+    updateChart(data);
+
+    // Timestamp
+    const updDot = document.getElementById('upd-dot');
+    const updTime = document.getElementById('update_time');
+    if (data.update_time) {
+        updDot.className = 'dot live';
+        updTime.textContent = 'Last update: ' + data.update_time;
+    }
+});
+
+function setText(id, text, className) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    if (className) el.className = className;
+}
+
+function updateStrategy(strategy) {
+    const el = document.getElementById('hdr-strategy');
+    el.textContent = strategy;
+    const map = {
+        conservative: 'pill pill-blue',
+        balanced:     'pill pill-green',
+        aggressive:   'pill pill-orange',
+    };
+    el.className = map[strategy.toLowerCase()] || 'pill pill-muted';
+}
+
+function updatePnl(val) {
+    const card  = document.getElementById('pnl-card');
+    const valEl = document.getElementById('difference_price');
+    const sub   = document.getElementById('pnl-sub');
+    if (!val) return;
+    const n = parseFloat(val);
+    valEl.classList.remove('placeholder');
+    if (isNaN(n)) {
+        valEl.textContent = val;
+        return;
+    }
+    const isPos = n >= 0;
+    valEl.textContent = pnlSign(val) + fmtPrice(val);
+    valEl.className   = 'card-value ' + (isPos ? 'positive' : 'negative');
+    card.className    = 'card card-pnl ' + (isPos ? 'positive' : 'negative');
+    sub.textContent   = isPos ? 'In profit' : 'In loss';
+}
+
+function updatePosition(pos, signal) {
+    const card  = document.getElementById('pos-card');
+    const badge = document.getElementById('position');
+    const sub   = document.getElementById('pos-sub');
+    if (!pos) return;
+    badge.classList.remove('placeholder');
+
+    const up = pos.toUpperCase();
+    if (up === 'SELL') {
+        // Holding base asset, waiting to sell
+        badge.textContent  = '▲ ' + pos;
+        badge.style.color  = 'var(--green)';
+        card.className     = 'card card-position long';
+        sub.textContent    = 'Holding base asset';
+    } else if (up === 'BUY') {
+        // Holding quote asset, waiting to buy
+        badge.textContent  = '▽ ' + pos;
+        badge.style.color  = 'var(--muted)';
+        card.className     = 'card card-position';
+        sub.textContent    = 'Waiting to buy';
+    } else {
+        badge.textContent  = pos;
+        badge.style.color  = 'var(--muted)';
+        card.className     = 'card card-position';
+        sub.textContent    = '';
+    }
+}
+
+function updateAction(action) {
+    const card  = document.getElementById('action-card');
+    const valEl = document.getElementById('action');
+    const sub   = document.getElementById('action-sub');
+    const up    = action.toUpperCase();
+    valEl.classList.remove('placeholder');
+
+    if (up === 'BUY') {
+        valEl.textContent  = '▲ BUY';
+        valEl.style.color  = 'var(--green)';
+        card.style.borderLeft = '3px solid var(--green)';
+        sub.textContent   = 'Order placed';
+    } else if (up === 'SELL') {
+        valEl.textContent  = '▽ SELL';
+        valEl.style.color  = 'var(--red)';
+        card.style.borderLeft = '3px solid var(--red)';
+        sub.textContent   = 'Order placed';
+    } else {
+        valEl.textContent  = '— HOLD';
+        valEl.style.color  = 'var(--muted)';
+        card.style.borderLeft = '3px solid var(--border)';
+        sub.textContent   = 'No order this cycle';
+    }
+}
+
+function updateSignals(signalString) {
+    const grid = document.getElementById('signal-grid');
+    const parts = signalString.split('/').map(s => s.trim());
+    const map = {};
+    parts.forEach(p => {
+        const [k, v] = p.split(':');
+        if (k && v) map[k.trim()] = v.trim();
+    });
+
+    // Build items for all known + any extra
+    const KNOWN = ['EMA','RSI','TREND','VOL','MACD','BB','STOCH'];
+    const all   = [...new Set([...KNOWN, ...Object.keys(map)])];
+
+    grid.innerHTML = all.map(name => {
+        const val = map[name] || '—';
+        const cls = signClass(val);
+        return `<div class="sig-item">
+            <span class="sig-name">${name}</span>
+            <span class="sig-val ${cls}">${val}</span>
+        </div>`;
+    }).join('');
+}
+
+function updateBalance(id, val, fmtFn, assetHint) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!val) return;
+    el.textContent = fmtFn(val) + (assetHint ? ' ' + assetHint : '');
+    el.classList.remove('placeholder');
+}
+
+function updateChart(data) {
+    if (!data.current_price || !data.update_time) return;
+
+    const currentCycle = data.cycle;
+    if (currentCycle && lastCycle === currentCycle) {
+        return;
+    }
+    lastCycle = currentCycle;
+
+    const label = data.update_time.split(' ')[1] || data.update_time;
+    priceChart.data.labels.push(label);
+    priceChart.data.datasets[0].data.push(parseFloat(data.current_price));
+
+    if (priceChart.data.labels.length > 40) {
+        priceChart.data.labels.shift();
+        priceChart.data.datasets[0].data.shift();
+    }
+    priceChart.update('none');
+}
+</script>
+</body>
+</html>
