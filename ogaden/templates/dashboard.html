@@ -119,9 +119,27 @@
 
         .grid-top {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            grid-template-columns: repeat(4, 1fr);
             gap: 12px;
             margin-bottom: 12px;
+        }
+
+        .section-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+            padding: 12px 0 6px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .section-label::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
         }
 
         .grid-mid {
@@ -305,7 +323,7 @@
 <main>
 
     <!-- Row 1: Price · P&L · Position · Action -->
-    <div class="grid-top" style="grid-template-columns: 1fr 1fr 1fr 1fr;">
+    <div class="grid-top">
 
         <div class="card card-price">
             <div class="card-label">Current Price</div>
@@ -359,12 +377,12 @@
     </div>
 
     <!-- Row 3: Balances -->
+    <div class="section-label">Balances</div>
     <div class="grid-bottom">
 
         <div class="card card-balance">
             <div class="card-label">Base Balance</div>
             <div class="card-value placeholder" id="base_balance">—</div>
-            <div class="card-sub" id="base_balance_sub"></div>
         </div>
 
         <div class="card card-balance">
@@ -388,6 +406,7 @@
     </div>
 
     <!-- Row 4: Risk Management Config -->
+    <div class="section-label">Risk Management</div>
     <div class="grid-bottom">
 
         <div class="card">
@@ -423,7 +442,7 @@
         <div class="card">
             <div class="card-label">Cooldown</div>
             <div class="card-value placeholder" id="cooldown_remaining">—</div>
-            <div class="card-sub">cycles after loss</div>
+            <div class="card-sub" id="cooldown_sub">—</div>
         </div>
 
     </div>
@@ -550,7 +569,7 @@ socket.on('update', function(data) {
     updatePnl(data.difference_price, data.difference_price_p);
 
     // Position
-    updatePosition(data.position, data.signal);
+    updatePosition(data.position, data.signal, data.stop_loss, data.take_profit);
 
     // Action
     if (data.action) updateAction(data.action);
@@ -578,6 +597,11 @@ socket.on('update', function(data) {
     setText('trend_filter_ema',     data.trend_filter_ema,     '');
     setText('min_trade_margin_pct', data.min_trade_margin_pct, 'card-value');
     setText('cooldown_remaining',   data.cooldown_remaining,   'card-value');
+    if (data.cooldown_remaining !== undefined) {
+        const cd = parseInt(data.cooldown_remaining, 10);
+        const cdSub = document.getElementById('cooldown_sub');
+        if (cdSub) cdSub.textContent = cd > 0 ? 'cycles remaining' : 'no cooldown active';
+    }
 
     // Chart
     updateChart(data);
@@ -639,7 +663,7 @@ function updatePnl(val, pct) {
     sub.textContent   = (isPos ? 'In profit' : 'In loss') + (pct ? '  ' + pct : '');
 }
 
-function updatePosition(pos, signal) {
+function updatePosition(pos, signal, sl, tp) {
     const card  = document.getElementById('pos-card');
     const badge = document.getElementById('position');
     const sub   = document.getElementById('pos-sub');
@@ -647,23 +671,24 @@ function updatePosition(pos, signal) {
     badge.classList.remove('placeholder');
 
     const up = pos.toUpperCase();
-    if (up === 'SELL') {
-        // Holding base asset, waiting to sell
-        badge.textContent  = '▲ HOLDING';
-        badge.style.color  = 'var(--green)';
-        card.className     = 'card card-position long';
-        sub.textContent    = 'ready to sell';
-    } else if (up === 'BUY') {
-        // Holding quote asset, waiting to buy
-        badge.textContent  = '▽ WAITING';
-        badge.style.color  = 'var(--muted)';
-        card.className     = 'card card-position';
-        sub.textContent    = 'ready to buy';
+    if (up === 'HOLDING') {
+        badge.textContent = '▲ HOLDING';
+        badge.style.color = 'var(--green)';
+        card.className    = 'card card-position long';
+        const parts = [];
+        if (sl && sl !== '-') parts.push('SL ' + fmtPrice(sl));
+        if (tp && tp !== '-') parts.push('TP ' + fmtPrice(tp));
+        sub.textContent = parts.length ? parts.join('  ·  ') : 'ready to sell';
+    } else if (up === 'WAITING') {
+        badge.textContent = '▽ WAITING';
+        badge.style.color = 'var(--muted)';
+        card.className    = 'card card-position';
+        sub.textContent   = 'ready to buy';
     } else {
-        badge.textContent  = pos;
-        badge.style.color  = 'var(--muted)';
-        card.className     = 'card card-position';
-        sub.textContent    = '';
+        badge.textContent = pos;
+        badge.style.color = 'var(--muted)';
+        card.className    = 'card card-position';
+        sub.textContent   = '';
     }
 }
 
@@ -726,6 +751,24 @@ function updateBalance(id, val, fmtFn, assetHint) {
 function updateChart(data) {
     if (!data.current_price || !data.update_time) return;
 
+    // On first arrival, seed the chart from persisted history so a page reload
+    // doesn't start from scratch. The history is maintained by the trader in
+    // Memcached with a 1-hour TTL.
+    if (priceChart.data.labels.length === 0 && data.price_history) {
+        try {
+            const pts = JSON.parse(data.price_history);
+            pts.forEach(([t, p]) => {
+                priceChart.data.labels.push(t);
+                priceChart.data.datasets[0].data.push(p);
+            });
+            // Mark the current heartbeat as consumed so we don't re-append it.
+            lastHeartbeat = data.price_heartbeat || null;
+            priceChart.update('none');
+            if (DEBUG) console.log('[chart] seeded', pts.length, 'points from history');
+        } catch (_) {}
+        return;
+    }
+
     // price_heartbeat is written by the engine only after a real API fetch.
     // No heartbeat (or same heartbeat) means nothing new to plot.
     if (!data.price_heartbeat || lastHeartbeat === data.price_heartbeat) return;
@@ -740,6 +783,13 @@ function updateChart(data) {
         priceChart.data.datasets[0].data.shift();
     }
     priceChart.update('none');
+
+    // Flash the chart border to signal a new data point
+    const wrap = document.querySelector('.chart-wrap');
+    wrap.classList.remove('flash');
+    void wrap.offsetWidth; // force reflow so animation restarts
+    wrap.classList.add('flash');
+    setTimeout(() => wrap.classList.remove('flash'), 400);
 }
 </script>
 </body>

@@ -1,5 +1,6 @@
 """Trading state machine and orchestration."""
 
+import json
 import logging
 import time
 from dataclasses import dataclass, field
@@ -21,6 +22,8 @@ log = logging.getLogger(__name__)
 
 CYCLE_SLEEP = 60
 MEMCACHE_TTL = 120
+PRICE_HISTORY_MAX = 40
+PRICE_HISTORY_TTL = 3600  # 1 hour — survives engine pauses between cycles
 
 
 def _dash_or(value: float, decimals: int) -> str:
@@ -91,7 +94,7 @@ class Trader(Broker):
         # Trend filter value (long-term EMA)
         self.trend_ema_value: float = 0.0
 
-        self.position: str = "BUY"
+        self.position: str = "WAITING"
         self.last_action: str = "HOLD"
         self.rsi_value: float = 0.0
 
@@ -286,7 +289,7 @@ class Trader(Broker):
             time.sleep(1)
 
     def can_buy(self) -> bool:
-        if self.position != "BUY":
+        if self.position != "WAITING":
             return False
 
         # Cooldown after a losing trade
@@ -313,7 +316,7 @@ class Trader(Broker):
         return self.strategy.can_buy()
 
     def can_sell(self) -> bool:
-        if self.position != "SELL":
+        if self.position != "HOLDING":
             return False
 
         # Forced stop-loss: exit immediately when price hits stop
@@ -350,7 +353,7 @@ class Trader(Broker):
     def _do_buy(self) -> None:
         if self.execute_buy():
             self.purchase_price = self.current_price
-            self.position = "SELL"
+            self.position = "HOLDING"
 
             # Set ATR-based stop-loss and take-profit (2:1 reward ratio)
             if not self.data.empty and "atr" in self.data.columns:
@@ -407,7 +410,7 @@ class Trader(Broker):
             self.purchase_price = 0.0
             self.stop_loss_price = 0.0
             self.take_profit_price = 0.0
-            self.position = "BUY"
+            self.position = "WAITING"
             self.metrics.sells += 1
             self._save_state()
 
@@ -416,12 +419,12 @@ class Trader(Broker):
         self.base_quote_balance = self.base_balance * self.current_price
         self.expected_balance = self.quote_balance + self.base_quote_balance
 
-        if self.position == "BUY":
+        if self.position == "WAITING":
             self.trailing_balance = 0.0
             self.difference_price_v = 0.0
             self.difference_price_p = 0.0
 
-        if self.position == "SELL":
+        if self.position == "HOLDING":
             trailing = self.expected_balance * self.TRAILING_THRESHOLD
             if trailing > self.trailing_balance:
                 self.trailing_balance = trailing
@@ -533,9 +536,9 @@ class Trader(Broker):
             "trailing_balance": f"{self.trailing_balance:.8f}",
             "current_price": f"{self.current_price:.8f}",
             "purchase_price": f"{self.purchase_price:.8f}",
-            "difference_price": (
-                f"{self.difference_price_v:.8f} / {self.difference_price_p:.4f}"
-            ),
+            "difference_price": f"{self.difference_price_v:.8f}",
+            "difference_price_p": f"{self.difference_price_p:+.2f}%",
+            "cycle_sleep": str(CYCLE_SLEEP),
             "cycle": str(self.metrics.cycles),
             # Heartbeat: only written after a real API fetch (quiet=False).
             # The dashboard uses this to gate chart updates — one point per cycle.
@@ -558,3 +561,20 @@ class Trader(Broker):
             log.debug("Memcache updated (%d keys)", len(data))
         except Exception as exc:
             log.warning("Memcache write failed: %s", exc)
+
+        if not quiet:
+            # Persist chart history so the dashboard can pre-populate on page load.
+            # Written with a longer TTL so it survives brief engine pauses.
+            try:
+                raw = self.memcache.get("price_history")
+                history: list = json.loads(raw) if raw else []
+            except Exception:
+                history = []
+            time_label = update_time.split(" ")[1] if " " in update_time else update_time
+            history.append([time_label, round(self.current_price, 2)])
+            if len(history) > PRICE_HISTORY_MAX:
+                history = history[-PRICE_HISTORY_MAX:]
+            try:
+                self.memcache.set("price_history", json.dumps(history), expire=PRICE_HISTORY_TTL)
+            except Exception as exc:
+                log.warning("Memcache price_history write failed: %s", exc)

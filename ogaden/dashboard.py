@@ -40,6 +40,8 @@ MEMCACHE_KEYS = [
     "take_profit",
     "trend_ema_value",
     "price_heartbeat",
+    "price_history",
+    "cycle_sleep",
 ]
 
 # Default poll interval: 2 seconds (5x faster than previous 10s).
@@ -52,6 +54,9 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 # Connection tracking — only poll Memcached when clients are connected.
 _connection_lock = threading.Lock()
 _connected_count = 0
+
+# Last broadcast payload — re-sent immediately to newly connected clients.
+_last_broadcast: dict = {}
 
 
 def _increment_connections() -> int:
@@ -87,6 +92,8 @@ def health() -> dict[str, str]:
 def _on_connect() -> None:
     count = _increment_connections()
     log.info("Client connected (total: %d)", count)
+    if _last_broadcast:
+        socketio.emit("update", _last_broadcast, namespace="/")
 
 
 @socketio.on("disconnect")
@@ -96,12 +103,17 @@ def _on_disconnect() -> None:
 
 
 def _poll_memcache(client: base.Client, interval: float) -> None:
-    """Poll Memcached and broadcast updates only when clients are connected.
+    """Poll Memcached and broadcast only when meaningful data changes.
 
-    Skips polling when no WebSocket clients are connected to reduce load on
-    Memcached and avoid unnecessary work.
+    Polls at *interval* seconds to detect changes quickly, but only emits a
+    Socket.IO event when price_heartbeat or action has changed — avoiding
+    redundant updates between trading cycles.
     """
+    global _last_broadcast
     consecutive_errors = 0
+    last_heartbeat: str | None = None
+    last_action: str | None = None
+    current_interval = interval  # fallback until engine reports cycle_sleep
 
     while True:
         if not _has_clients():
@@ -114,9 +126,20 @@ def _poll_memcache(client: base.Client, interval: float) -> None:
                 k: v.decode() if isinstance(v, bytes) else v for k, v in raw.items()
             }
             if data:
-                keys = {k for k in data if k != "signal"}
-                log.debug("Broadcasting update: %s", keys)
-                socketio.emit("update", data, namespace="/")
+                # Auto-tune poll interval: cycle_sleep / 4 so we catch changes
+                # within a quarter of the engine's sleep window.
+                if cs := data.get("cycle_sleep"):
+                    current_interval = max(5.0, float(cs) / 4)
+
+                heartbeat = data.get("price_heartbeat")
+                action = data.get("action")
+                if heartbeat != last_heartbeat or action != last_action:
+                    last_heartbeat = heartbeat
+                    last_action = action
+                    _last_broadcast = data
+                    keys = {k for k in data if k != "signal"}
+                    log.debug("Broadcasting update (interval=%.0fs): %s", current_interval, keys)
+                    socketio.emit("update", data, namespace="/")
             consecutive_errors = 0
         except Exception:
             consecutive_errors += 1
@@ -128,7 +151,7 @@ def _poll_memcache(client: base.Client, interval: float) -> None:
                     consecutive_errors,
                 )
 
-        time.sleep(interval)
+        time.sleep(current_interval)
 
 
 def main() -> None:

@@ -150,7 +150,7 @@ class RuleStrategy(BaseStrategy):
         self.signal_stoch = self.trader.data["signal_stoch"].iloc[-1]
 
     def can_buy(self) -> bool:
-        if self.trader.position != "BUY":
+        if self.trader.position != "WAITING":
             return False
 
         # Volume gate: block the trade entirely if volume confirmation is required
@@ -187,7 +187,7 @@ class RuleStrategy(BaseStrategy):
         return True
 
     def can_sell(self) -> bool:
-        if self.trader.position != "SELL":
+        if self.trader.position != "HOLDING":
             return False
 
         # Volume gate.
