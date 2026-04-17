@@ -292,7 +292,6 @@ class Trader(Broker):
         if self.position != "WAITING":
             return False
 
-        # Cooldown after a losing trade
         if self.metrics.cycles < self.cooldown_until_cycle:
             log.debug(
                 "BUY blocked: cooldown active (%d cycles remaining)",
@@ -300,16 +299,25 @@ class Trader(Broker):
             )
             return False
 
-        # Minimum margin: skip trade if ATR-based expected move < threshold
+        if self.trend_ema_value > 0 and self.current_price < self.trend_ema_value:
+            log.debug(
+                "BUY blocked: price %.4f below trend EMA %.4f",
+                self.current_price,
+                self.trend_ema_value,
+            )
+            return False
+
         if not self.data.empty and "atr" in self.data.columns:
             atr = self.data["atr"].iloc[-1]
             if atr > 0 and self.current_price > 0:
                 expected_move_pct = (atr / self.current_price) * 100.0 * 2
-                if expected_move_pct < self.MIN_TRADE_MARGIN_PCT:
+                fee_buffer = 0.2
+                if expected_move_pct < self.MIN_TRADE_MARGIN_PCT + fee_buffer:
                     log.debug(
-                        "BUY blocked: expected move %.3f%% < min %.2f%%",
+                        "BUY blocked: expected move %.3f%% < min %.2f%% + fee %.2f%%",
                         expected_move_pct,
                         self.MIN_TRADE_MARGIN_PCT,
+                        fee_buffer,
                     )
                     return False
 
@@ -570,11 +578,15 @@ class Trader(Broker):
                 history: list = json.loads(raw) if raw else []
             except Exception:
                 history = []
-            time_label = update_time.split(" ")[1] if " " in update_time else update_time
+            time_label = (
+                update_time.split(" ")[1] if " " in update_time else update_time
+            )
             history.append([time_label, round(self.current_price, 2)])
             if len(history) > PRICE_HISTORY_MAX:
                 history = history[-PRICE_HISTORY_MAX:]
             try:
-                self.memcache.set("price_history", json.dumps(history), expire=PRICE_HISTORY_TTL)
+                self.memcache.set(
+                    "price_history", json.dumps(history), expire=PRICE_HISTORY_TTL
+                )
             except Exception as exc:
                 log.warning("Memcache price_history write failed: %s", exc)

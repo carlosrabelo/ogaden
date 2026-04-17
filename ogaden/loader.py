@@ -147,7 +147,6 @@ class Loader:
         self.ATR_STOP_MULTIPLIER: float = float(
             os.getenv("ATR_STOP_MULTIPLIER", str(strategy_config.atr_stop_multiplier))
         )
-        self.ATR_STOP_MULTIPLIER: float = float(os.getenv("ATR_STOP_MULTIPLIER", "2.0"))
 
         # --- Validate configuration ---
         if self.INTERVAL not in _VALID_INTERVALS:

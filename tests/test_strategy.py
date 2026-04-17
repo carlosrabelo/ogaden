@@ -9,13 +9,14 @@ from ogaden.strategy import RuleStrategy, StrategyConfig
 @pytest.fixture
 def trader_mock() -> MagicMock:
     trader = MagicMock()
-    trader.position = "BUY"
+    trader.position = "WAITING"
     return trader
 
 
 # ---------------------------------------------------------------------------
 # StrategyConfig
 # ---------------------------------------------------------------------------
+
 
 class TestStrategyConfig:
     def test_balanced_defaults(self) -> None:
@@ -41,6 +42,7 @@ class TestStrategyConfig:
 # ---------------------------------------------------------------------------
 # RuleStrategy.can_buy — balanced mode (min_confirmations=1)
 # ---------------------------------------------------------------------------
+
 
 class TestCanBuy:
     def test_all_buy_signals(self, trader_mock: MagicMock) -> None:
@@ -86,7 +88,7 @@ class TestCanBuy:
         assert strategy.can_buy() is False
 
     def test_wrong_position_blocks_buy(self, trader_mock: MagicMock) -> None:
-        trader_mock.position = "SELL"
+        trader_mock.position = "HOLDING"
         strategy = RuleStrategy(trader_mock)
         strategy.signal_ema = "BUY"
         strategy.signal_ema_trend = "BUY"
@@ -111,9 +113,7 @@ class TestCanBuy:
         # no confirmations at all
         assert strategy.can_buy() is True
 
-    def test_conservative_needs_two_confirmations(
-        self, trader_mock: MagicMock
-    ) -> None:
+    def test_conservative_needs_two_confirmations(self, trader_mock: MagicMock) -> None:
         strategy = RuleStrategy(trader_mock, mode="conservative")
         strategy.signal_ema = "BUY"
         strategy.signal_ema_trend = "BUY"
@@ -138,9 +138,10 @@ class TestCanBuy:
 # RuleStrategy.can_sell — balanced mode
 # ---------------------------------------------------------------------------
 
+
 class TestCanSell:
     def test_all_sell_signals(self, trader_mock: MagicMock) -> None:
-        trader_mock.position = "SELL"
+        trader_mock.position = "HOLDING"
         strategy = RuleStrategy(trader_mock)
         strategy.signal_ema = "SELL"
         strategy.signal_ema_trend = "SELL"
@@ -148,7 +149,7 @@ class TestCanSell:
         assert strategy.can_sell() is True
 
     def test_primary_ema_with_one_confirmation(self, trader_mock: MagicMock) -> None:
-        trader_mock.position = "SELL"
+        trader_mock.position = "HOLDING"
         strategy = RuleStrategy(trader_mock)
         strategy.signal_ema = "SELL"
         strategy.signal_ema_trend = "HOLD"
@@ -156,7 +157,7 @@ class TestCanSell:
         assert strategy.can_sell() is True
 
     def test_no_primary_sell_blocks(self, trader_mock: MagicMock) -> None:
-        trader_mock.position = "SELL"
+        trader_mock.position = "HOLDING"
         strategy = RuleStrategy(trader_mock)
         strategy.signal_ema = "HOLD"
         strategy.signal_ema_trend = "HOLD"
@@ -164,7 +165,7 @@ class TestCanSell:
         assert strategy.can_sell() is False
 
     def test_wrong_position_blocks_sell(self, trader_mock: MagicMock) -> None:
-        trader_mock.position = "BUY"
+        trader_mock.position = "WAITING"
         strategy = RuleStrategy(trader_mock)
         strategy.signal_ema = "SELL"
         strategy.signal_ema_trend = "SELL"
@@ -174,17 +175,17 @@ class TestCanSell:
     def test_insufficient_confirmations_blocks_sell(
         self, trader_mock: MagicMock
     ) -> None:
-        trader_mock.position = "SELL"
+        trader_mock.position = "HOLDING"
         strategy = RuleStrategy(trader_mock)
         strategy.signal_ema = "SELL"
         strategy.signal_ema_trend = "SELL"
-        # all confirmations default to HOLD → 0 < 1
         assert strategy.can_sell() is False
 
 
 # ---------------------------------------------------------------------------
 # Signal string
 # ---------------------------------------------------------------------------
+
 
 class TestSignalString:
     def test_format_contains_all_indicators(self, trader_mock: MagicMock) -> None:

@@ -58,19 +58,22 @@ class IndicatorMixin:
         ).ema_indicator()
 
     def calculate_ema_signal(self) -> None:
-        """Positional EMA signal: BUY while fast > slow, SELL while fast < slow."""
-        self.data["signal_ema"] = self.data.apply(
-            lambda row: (
-                "BUY"
-                if row["fast_ema"] > row["slow_ema"]
-                else "SELL"
-                if row["fast_ema"] < row["slow_ema"]
-                else "HOLD"
-            ),
-            axis=1,
-        )
+        """Crossover EMA signal: BUY on golden cross, SELL on death cross."""
+        self.data["signal_ema"] = "HOLD"
+        for i in range(1, len(self.data)):
+            prev_fast = self.data["fast_ema"].iloc[i - 1]
+            prev_slow = self.data["slow_ema"].iloc[i - 1]
+            curr_fast = self.data["fast_ema"].iloc[i]
+            curr_slow = self.data["slow_ema"].iloc[i]
+
+            if prev_fast <= prev_slow and curr_fast > curr_slow:
+                self.data.at[i, "signal_ema"] = "BUY"
+            elif prev_fast >= prev_slow and curr_fast < curr_slow:
+                self.data.at[i, "signal_ema"] = "SELL"
 
     def calculate_ema_signal_trend(self) -> None:
+        """Trend-filtered EMA signal: only BUY when close > trend EMA (uptrend),
+        only SELL when close < trend EMA (downtrend)."""
         self.data["signal_ema_trend"] = "HOLD"
         for i in range(1, len(self.data)):
             fast = self.data["fast_ema"].iloc[i]
@@ -78,10 +81,11 @@ class IndicatorMixin:
             close = self.data["close"].iloc[i]
             trend = self.data["trend_ema"].iloc[i]
 
-            if fast > slow:
-                self.data.at[i, "signal_ema_trend"] = "BUY"
-            elif fast < slow:
-                self.data.at[i, "signal_ema_trend"] = "SELL"
+            if pd.notna(fast) and pd.notna(slow) and pd.notna(trend):
+                if fast > slow and close > trend:
+                    self.data.at[i, "signal_ema_trend"] = "BUY"
+                elif fast < slow and close < trend:
+                    self.data.at[i, "signal_ema_trend"] = "SELL"
 
     # -- RSI -------------------------------------------------------------------
 
@@ -297,26 +301,13 @@ class IndicatorMixin:
         """Generate Stochastic-based trading signals."""
         self.data["signal_stoch"] = "HOLD"
 
-        # Overbought/Oversold levels
-        overbought = (self.data["stoch_k"] > 80) & (self.data["stoch_d"] > 80)
-        oversold = (self.data["stoch_k"] < 20) & (self.data["stoch_d"] < 20)
+        oversold_k = self.data["stoch_k"] < 30
+        overbought_k = self.data["stoch_k"] > 70
 
-        # Crossover signals
         k_above_d = self.data["stoch_k"] > self.data["stoch_d"]
-        k_below_d = self.data["stoch_k"] < self.data["stoch_d"]
 
-        # Buy signal: Oversold + K crosses above D
-        buy_signal = (
-            oversold
-            & k_above_d
-            & (self.data["stoch_k"].shift(1) <= self.data["stoch_d"].shift(1))
-        )
+        buy_signal = oversold_k & k_above_d
         self.data.loc[buy_signal, "signal_stoch"] = "BUY"
 
-        # Sell signal: Overbought + K crosses below D
-        sell_signal = (
-            overbought
-            & k_below_d
-            & (self.data["stoch_k"].shift(1) >= self.data["stoch_d"].shift(1))
-        )
+        sell_signal = overbought_k & ~k_above_d
         self.data.loc[sell_signal, "signal_stoch"] = "SELL"
