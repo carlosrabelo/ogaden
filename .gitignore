@@ -1,18 +1,8 @@
-# AI Tools
-CLAUDE.md
-CLAUDE.local.md
-.claude/
-GEMINI.md
-.gemini/
-.antigravity/
-.opencode/
-opencode.json
-.cursor/
-.aider
-.aider.conf.yml
-.qwen
+# ============================================================================
+# SECRETS
+# ============================================================================
 
-# Secrets
+# Files
 .env
 .env.*
 !.env.example
@@ -20,36 +10,56 @@ opencode.json
 *.pem
 credentials.json
 
-# Python
+# ============================================================================
+# PYTHON
+# ============================================================================
+
+# Directories
 __pycache__/
-*.py[cod]
-*.pyo
 .venv/
 *.egg-info/
 dist/
 build/
-MANIFEST
 .pytest_cache/
-.coverage
-.coverage.*
 htmlcov/
 .tox/
 .mypy_cache/
 .pytype/
 .ruff_cache/
+
+# Files
+*.py[cod]
+*.pyo
+MANIFEST
+.coverage
+.coverage.*
 commit.diff
 
-# State data
-data/*.json
-!data/.gitkeep
+# ============================================================================
+# EDITORS
+# ============================================================================
 
-# Editors
+# Directories
 .idea/
 .vscode/
+
+# Files
 *.swp
 *.swo
 *~
 
+# ============================================================================
 # OS
+# ============================================================================
+
+# Files
 .DS_Store
 Thumbs.db
+
+# ============================================================================
+# EXCEPTIONS (preserve these)
+# ============================================================================
+
+# State data — preserve placeholder
+data/*.json
+!data/.gitkeep

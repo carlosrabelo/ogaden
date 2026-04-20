@@ -43,14 +43,10 @@ class ExchangeProtocol(Protocol):
         """Return OHLCV kline/candlestick data for *symbol*."""
         ...
 
-    def order_market_buy(
-        self, *, symbol: str, quantity: float
-    ) -> dict[str, Any]:
+    def order_market_buy(self, *, symbol: str, quantity: float) -> dict[str, Any]:
         """Place a market buy order for *quantity* units of *symbol*."""
         ...
 
-    def order_market_sell(
-        self, *, symbol: str, quantity: float
-    ) -> dict[str, Any]:
+    def order_market_sell(self, *, symbol: str, quantity: float) -> dict[str, Any]:
         """Place a market sell order for *quantity* units of *symbol*."""
         ...

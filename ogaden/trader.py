@@ -43,12 +43,19 @@ class Metrics:
     fetch_errors: int = 0
     order_errors: int = 0
     pnl_history: list[float] = field(default_factory=list)
+    trade_history: list[dict[str, object]] = field(default_factory=list)
 
     def record_pnl(self, pnl_pct: float) -> None:
         """Append a closed-trade P&L percentage to history (capped at 1000 entries)."""
         self.pnl_history.append(round(pnl_pct, 4))
         if len(self.pnl_history) > 1000:
             self.pnl_history = self.pnl_history[-1000:]
+
+    def record_trade(self, record: dict[str, object]) -> None:
+        """Append a completed trade record (capped at 200 entries)."""
+        self.trade_history.append(record)
+        if len(self.trade_history) > 200:
+            self.trade_history = self.trade_history[-200:]
 
     @property
     def total_pnl(self) -> float:
@@ -62,6 +69,25 @@ class Metrics:
             return 0.0
         wins = sum(1 for p in self.pnl_history if p > 0)
         return round(wins / len(self.pnl_history), 4)
+
+    @property
+    def rolling_drawdown(self) -> float:
+        """Sum of negative P&L across the last 20 closed trades (always <= 0)."""
+        if not self.pnl_history:
+            return 0.0
+        recent = self.pnl_history[-20:]
+        return round(sum(p for p in recent if p < 0), 4)
+
+    @property
+    def consecutive_losses(self) -> int:
+        """Current streak of consecutive losing trades."""
+        count = 0
+        for p in reversed(self.pnl_history):
+            if p < 0:
+                count += 1
+            else:
+                break
+        return count
 
 
 class Trader(Broker):
@@ -82,6 +108,10 @@ class Trader(Broker):
         # Mandatory risk management: stop-loss / take-profit prices
         self.stop_loss_price: float = 0.0
         self.take_profit_price: float = 0.0
+        self.trailing_stop_price: float = 0.0
+
+        # Circuit breaker: set to True when drawdown thresholds are breached
+        self.circuit_breaker_active: bool = False
 
         self.base_quote_balance: float = 0.0
         self.expected_balance: float = 0.0
@@ -94,9 +124,12 @@ class Trader(Broker):
         # Trend filter value (long-term EMA)
         self.trend_ema_value: float = 0.0
 
-        self.position: str = "WAITING"
+        self.position: str = "SELL"
         self.last_action: str = "HOLD"
         self.rsi_value: float = 0.0
+
+        self._sell_reason: str = "SIGNAL"
+        self._pending_entry: dict[str, object] = {}
 
         self.metrics = Metrics()
 
@@ -157,10 +190,12 @@ class Trader(Broker):
             "position": self.position,
             "purchase_price": self.purchase_price,
             "trailing_balance": self.trailing_balance,
+            "trailing_stop_price": self.trailing_stop_price,
             "stop_loss_price": self.stop_loss_price,
             "take_profit_price": self.take_profit_price,
             "cooldown_until_cycle": self.cooldown_until_cycle,
             "last_trade_pnl": self.last_trade_pnl,
+            "circuit_breaker_active": self.circuit_breaker_active,
             "metrics": {
                 "cycles": self.metrics.cycles,
                 "buys": self.metrics.buys,
@@ -168,6 +203,7 @@ class Trader(Broker):
                 "fetch_errors": self.metrics.fetch_errors,
                 "order_errors": self.metrics.order_errors,
                 "pnl_history": self.metrics.pnl_history,
+                "trade_history": self.metrics.trade_history,
             },
         }
         if self.SANDBOX:
@@ -188,15 +224,23 @@ class Trader(Broker):
         saved_symbol = state.get("symbol", "")
         if saved_symbol and saved_symbol != self.SYMBOL:
             log.info(
-                "Symbol changed (%s → %s) — resetting all indicators",
+                "Symbol changed (%s → %s) — resetting state and chart history",
                 saved_symbol,
                 self.SYMBOL,
             )
+            try:
+                self.memcache.delete("price_history")
+                self.memcache.delete("trade_history")
+            except Exception as exc:
+                log.warning("Memcache reset on symbol change failed: %s", exc)
             return  # Start fresh
 
-        self.position = str(state.get("position", self.position))
+        _pos_migrate = {"WAITING": "SELL", "HOLDING": "BUY"}
+        raw_pos = str(state.get("position", self.position))
+        self.position = _pos_migrate.get(raw_pos, raw_pos)
         self.purchase_price = float(state.get("purchase_price", 0.0))  # type: ignore[arg-type]
         self.trailing_balance = float(state.get("trailing_balance", 0.0))  # type: ignore[arg-type]
+        self.trailing_stop_price = float(state.get("trailing_stop_price", 0.0))  # type: ignore[arg-type]
         self.stop_loss_price = float(state.get("stop_loss_price", 0.0))  # type: ignore[arg-type]
         self.take_profit_price = float(state.get("take_profit_price", 0.0))  # type: ignore[arg-type]
         cooldown_raw = state.get("cooldown_until_cycle", 0)
@@ -205,6 +249,7 @@ class Trader(Broker):
         else:
             self.cooldown_until_cycle = 0
         self.last_trade_pnl = float(state.get("last_trade_pnl", 0.0))  # type: ignore[arg-type]
+        self.circuit_breaker_active = bool(state.get("circuit_breaker_active", False))
 
         if self.SANDBOX:
             if "base_balance" in state:
@@ -224,6 +269,12 @@ class Trader(Broker):
             if isinstance(pnl_history, list):
                 self.metrics.pnl_history = [float(x) for x in pnl_history]
 
+            trade_history = metrics_state.get("trade_history", [])
+            if isinstance(trade_history, list):
+                self.metrics.trade_history = [
+                    r for r in trade_history if isinstance(r, dict)
+                ]
+
         log.info(
             "State restored: position=%s purchase_price=%.8f "
             "stop_loss=%.8f take_profit=%.8f cooldown=%d",
@@ -233,6 +284,40 @@ class Trader(Broker):
             self.take_profit_price,
             self.cooldown_until_cycle,
         )
+
+    def _is_circuit_breaker_active(self) -> bool:
+        """Return True and halt trading if drawdown thresholds are breached."""
+        if self.circuit_breaker_active:
+            return True
+
+        triggered = False
+        drawdown = self.metrics.rolling_drawdown
+
+        if self.MAX_DRAWDOWN_PCT > 0.0 and drawdown <= -self.MAX_DRAWDOWN_PCT:
+            log.error(
+                "CIRCUIT BREAKER: drawdown %.2f%% <= -%.2f%% — halting",
+                drawdown,
+                self.MAX_DRAWDOWN_PCT,
+            )
+            triggered = True
+
+        consecutive = self.metrics.consecutive_losses
+        if (
+            self.MAX_CONSECUTIVE_LOSSES > 0
+            and consecutive >= self.MAX_CONSECUTIVE_LOSSES
+        ):
+            log.error(
+                "CIRCUIT BREAKER: %d consecutive losses >= %d threshold — halting",
+                consecutive,
+                self.MAX_CONSECUTIVE_LOSSES,
+            )
+            triggered = True
+
+        if triggered:
+            self.circuit_breaker_active = True
+            self._save_state()
+
+        return triggered
 
     def execute(self) -> None:
         """Run a single fetch → evaluate → act cycle, then sleep."""
@@ -289,7 +374,11 @@ class Trader(Broker):
             time.sleep(1)
 
     def can_buy(self) -> bool:
-        if self.position != "WAITING":
+        if self._is_circuit_breaker_active():
+            log.debug("BUY blocked: circuit breaker active")
+            return False
+
+        if self.position != "SELL":
             return False
 
         if self.metrics.cycles < self.cooldown_until_cycle:
@@ -324,7 +413,7 @@ class Trader(Broker):
         return self.strategy.can_buy()
 
     def can_sell(self) -> bool:
-        if self.position != "HOLDING":
+        if self.position != "BUY":
             return False
 
         # Forced stop-loss: exit immediately when price hits stop
@@ -335,6 +424,20 @@ class Trader(Broker):
                 self.stop_loss_price,
                 self.difference_price_p,
             )
+            self._sell_reason = "STOP_LOSS"
+            return True
+
+        # Price-based trailing stop: exit when price falls below peak by threshold
+        if (
+            self.trailing_stop_price > 0
+            and self.current_price <= self.trailing_stop_price
+        ):
+            log.info(
+                "TRAILING STOP triggered: %.8f <= %.8f",
+                self.current_price,
+                self.trailing_stop_price,
+            )
+            self._sell_reason = "TRAILING_STOP"
             return True
 
         # Forced take-profit: exit when price reaches target
@@ -345,23 +448,37 @@ class Trader(Broker):
                 self.take_profit_price,
                 self.difference_price_p,
             )
+            self._sell_reason = "TAKE_PROFIT"
             return True
 
         if self.PROFIT_ENABLE and self.difference_price_p > self.PROFIT_THRESHOLD:
+            self._sell_reason = "PROFIT_THRESHOLD"
             return True
 
         if self.LOSS_ENABLE and self.difference_price_p < self.LOSS_THRESHOLD:
+            self._sell_reason = "LOSS_THRESHOLD"
             return True
 
         if self.TRAILING_ENABLE and self.trailing_balance > self.expected_balance:
+            self._sell_reason = "TRAILING_BALANCE"
             return True
 
-        return self.strategy.can_sell()
+        result = self.strategy.can_sell()
+        if result:
+            self._sell_reason = "SIGNAL"
+        return result
 
     def _do_buy(self) -> None:
+        pre_base = self.base_balance
         if self.execute_buy():
+            self._pending_entry = {
+                "entry_time": datetime.now().isoformat(timespec="seconds"),
+                "entry_price": round(self.current_price, 8),
+                "quantity": round(self.base_balance - pre_base, 8),
+            }
+            self._sell_reason = "SIGNAL"
             self.purchase_price = self.current_price
-            self.position = "HOLDING"
+            self.position = "BUY"
 
             # Set ATR-based stop-loss and take-profit (2:1 reward ratio)
             if not self.data.empty and "atr" in self.data.columns:
@@ -405,6 +522,18 @@ class Trader(Broker):
             self.metrics.record_pnl(pnl)
             self.last_trade_pnl = pnl
 
+            if self._pending_entry:
+                self.metrics.record_trade(
+                    {
+                        **self._pending_entry,
+                        "exit_time": datetime.now().isoformat(timespec="seconds"),
+                        "exit_price": round(self.current_price, 8),
+                        "pnl_pct": round(pnl, 4),
+                        "exit_reason": self._sell_reason,
+                    }
+                )
+                self._pending_entry = {}
+
             # Set cooldown after a losing trade
             if pnl < 0:
                 self.cooldown_until_cycle = self.metrics.cycles + self.COOLDOWN_CYCLES
@@ -418,7 +547,8 @@ class Trader(Broker):
             self.purchase_price = 0.0
             self.stop_loss_price = 0.0
             self.take_profit_price = 0.0
-            self.position = "WAITING"
+            self.trailing_stop_price = 0.0
+            self.position = "SELL"
             self.metrics.sells += 1
             self._save_state()
 
@@ -427,15 +557,22 @@ class Trader(Broker):
         self.base_quote_balance = self.base_balance * self.current_price
         self.expected_balance = self.quote_balance + self.base_quote_balance
 
-        if self.position == "WAITING":
+        if self.position == "SELL":
             self.trailing_balance = 0.0
             self.difference_price_v = 0.0
             self.difference_price_p = 0.0
 
-        if self.position == "HOLDING":
+        if self.position == "BUY":
             trailing = self.expected_balance * self.TRAILING_THRESHOLD
             if trailing > self.trailing_balance:
                 self.trailing_balance = trailing
+
+            if self.TRAILING_STOP_ENABLE and self.current_price > 0:
+                trail_distance = self.current_price * (self.TRAILING_STOP_PCT / 100.0)
+                new_trail = self.current_price - trail_distance
+                if new_trail > self.trailing_stop_price:
+                    self.trailing_stop_price = new_trail
+                    log.debug("Trailing stop updated: %.8f", self.trailing_stop_price)
 
             if self.purchase_price > 0:
                 self.difference_price_v = self.current_price - self.purchase_price
@@ -519,7 +656,7 @@ class Trader(Broker):
                 )
             log.info(
                 "METRICS | cycle=%d buys=%d sells=%d fetch_err=%d order_err=%d "
-                "total_pnl=%.4f%% win_rate=%.1f%%",
+                "total_pnl=%.4f%% win_rate=%.1f%% drawdown=%.2f%% consec_losses=%d",
                 self.metrics.cycles,
                 self.metrics.buys,
                 self.metrics.sells,
@@ -527,7 +664,14 @@ class Trader(Broker):
                 self.metrics.order_errors,
                 self.metrics.total_pnl,
                 self.metrics.win_rate * 100,
+                self.metrics.rolling_drawdown,
+                self.metrics.consecutive_losses,
             )
+            if self.circuit_breaker_active:
+                log.error(
+                    "CIRCUIT BREAKER ACTIVE — trading halted. "
+                    "Reset circuit_breaker_active in state file to resume."
+                )
 
         data = {
             "update_time": update_time,
@@ -537,11 +681,11 @@ class Trader(Broker):
             "action": self.last_action,
             "strategy": self.STRATEGY_MODE,
             "signal": signal_str,
-            "base_balance": f"{self.base_balance:.8f}",
-            "quote_balance": f"{self.quote_balance:.8f}",
-            "base_quote_balance": f"{self.base_quote_balance:.8f}",
-            "expected_balance": f"{self.expected_balance:.8f}",
-            "trailing_balance": f"{self.trailing_balance:.8f}",
+            "base_balance": f"{self.base_balance:.6f}",
+            "quote_balance": f"{self.quote_balance:.2f}",
+            "base_quote_balance": f"{self.base_quote_balance:.2f}",
+            "expected_balance": f"{self.expected_balance:.2f}",
+            "trailing_balance": f"{self.trailing_balance:.2f}",
             "current_price": f"{self.current_price:.8f}",
             "purchase_price": f"{self.purchase_price:.8f}",
             "difference_price": f"{self.difference_price_v:.8f}",
@@ -559,9 +703,16 @@ class Trader(Broker):
                 max(0, self.cooldown_until_cycle - self.metrics.cycles)
             ),
             "min_trade_margin_pct": f"{self.MIN_TRADE_MARGIN_PCT:.2f}%",
-            "stop_loss": _dash_or(self.stop_loss_price, 8),
-            "take_profit": _dash_or(self.take_profit_price, 8),
-            "trend_ema_value": _dash_or(self.trend_ema_value, 8),
+            "stop_loss": _dash_or(self.stop_loss_price, 2),
+            "take_profit": _dash_or(self.take_profit_price, 2),
+            "trailing_stop": _dash_or(self.trailing_stop_price, 2),
+            "trend_ema_value": _dash_or(self.trend_ema_value, 2),
+            "trade_history": json.dumps(self.metrics.trade_history[-50:]),
+            "circuit_breaker": "true" if self.circuit_breaker_active else "false",
+            "consecutive_losses": str(self.metrics.consecutive_losses),
+            "rolling_drawdown": f"{self.metrics.rolling_drawdown:.2f}%",
+            "win_rate": f"{self.metrics.win_rate * 100:.1f}%",
+            "total_pnl": f"{self.metrics.total_pnl:.4f}%",
         }
 
         try:
@@ -575,7 +726,7 @@ class Trader(Broker):
             # Written with a longer TTL so it survives brief engine pauses.
             try:
                 raw = self.memcache.get("price_history")
-                history: list = json.loads(raw) if raw else []
+                history: list[list[object]] = json.loads(raw) if raw else []
             except Exception:
                 history = []
             time_label = (

@@ -4,6 +4,7 @@ import time
 from unittest.mock import MagicMock
 
 import pytest
+
 from ogaden.retry import with_retry
 
 

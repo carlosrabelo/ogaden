@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from ogaden.persistence import load_state, save_state
 
 

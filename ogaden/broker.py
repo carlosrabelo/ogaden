@@ -50,8 +50,9 @@ class Broker(IndicatorMixin, Loader):
 
     # -- Exchange data fetching ------------------------------------------------
 
-    @with_retry(max_attempts=3, base_delay=2.0, max_delay=30.0,
-                exceptions=(FetchError,))
+    @with_retry(
+        max_attempts=3, base_delay=2.0, max_delay=30.0, exceptions=(FetchError,)
+    )
     def fetch_vars(self) -> None:
         """Refresh balances, price, and exchange filter constraints.
 
@@ -148,11 +149,7 @@ class Broker(IndicatorMixin, Loader):
         try:
             info = self.exchange.get_symbol_info(symbol=symbol)
             result = next(
-                (
-                    f["minQty"]
-                    for f in info["filters"]
-                    if f["filterType"] == "LOT_SIZE"
-                ),
+                (f["minQty"] for f in info["filters"] if f["filterType"] == "LOT_SIZE"),
                 None,
             )
             if result is None:
@@ -166,8 +163,9 @@ class Broker(IndicatorMixin, Loader):
         except Exception as exc:
             raise FetchError(f"Failed to fetch minimum quantity for {symbol}") from exc
 
-    @with_retry(max_attempts=3, base_delay=2.0, max_delay=30.0,
-                exceptions=(FetchError,))
+    @with_retry(
+        max_attempts=3, base_delay=2.0, max_delay=30.0, exceptions=(FetchError,)
+    )
     def fetch_data(self) -> None:
         """Fetch klines and build the OHLCV DataFrame.
 

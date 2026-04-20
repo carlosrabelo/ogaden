@@ -98,16 +98,19 @@ class TestAnalysis:
     def test_analysis_runs_without_crash(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Analysis should fetch data and calculate indicators without crashing."""
         import pandas as pd
+
         from ogaden.analysis import main
 
         mock_trader = MagicMock()
-        mock_trader.data = pd.DataFrame({
-            "close": [100.0, 101.0, 102.0, 99.0, 98.0, 100.0, 103.0, 105.0],
-            "high": [101.0, 102.0, 103.0, 100.0, 99.0, 101.0, 104.0, 106.0],
-            "low": [99.0, 100.0, 101.0, 98.0, 97.0, 99.0, 102.0, 104.0],
-            "open": [100.0, 101.0, 102.0, 99.0, 98.0, 100.0, 103.0, 105.0],
-            "volume": [1000.0] * 8,
-        })
+        mock_trader.data = pd.DataFrame(
+            {
+                "close": [100.0, 101.0, 102.0, 99.0, 98.0, 100.0, 103.0, 105.0],
+                "high": [101.0, 102.0, 103.0, 100.0, 99.0, 101.0, 104.0, 106.0],
+                "low": [99.0, 100.0, 101.0, 98.0, 97.0, 99.0, 102.0, 104.0],
+                "open": [100.0, 101.0, 102.0, 99.0, 98.0, 100.0, 103.0, 105.0],
+                "volume": [1000.0] * 8,
+            }
+        )
         monkeypatch.setattr("ogaden.analysis.Trader", lambda: mock_trader)
 
         main()  # Should not raise

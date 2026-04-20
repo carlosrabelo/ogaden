@@ -50,7 +50,7 @@ class StrategyConfig:
             self.position_size_pct = 25.0
 
         elif mode == "aggressive":
-            self.min_confirmations = 0
+            self.min_confirmations = 1
             self.volume_required = False
             self.trend_weight = 1
             self.rsi_buy = 45
@@ -58,12 +58,12 @@ class StrategyConfig:
             self.fast_ema = 5
             self.slow_ema = 10
             self.trend_filter_ema = 50
-            self.cooldown_cycles = 0
+            self.cooldown_cycles = 2
             self.min_trade_margin_pct = 0.2
             self.profit_threshold = 0.0
             self.loss_threshold = 0.0
             self.atr_stop_multiplier = 1.5
-            self.position_size_pct = 35.0
+            self.position_size_pct = 25.0
 
         else:
             raise ValueError(f"Unknown strategy mode: {mode!r}")
@@ -150,7 +150,7 @@ class RuleStrategy(BaseStrategy):
         self.signal_stoch = self.trader.data["signal_stoch"].iloc[-1]
 
     def can_buy(self) -> bool:
-        if self.trader.position != "WAITING":
+        if self.trader.position != "SELL":
             return False
 
         # Volume gate: block the trade entirely if volume confirmation is required
@@ -187,7 +187,7 @@ class RuleStrategy(BaseStrategy):
         return True
 
     def can_sell(self) -> bool:
-        if self.trader.position != "HOLDING":
+        if self.trader.position != "BUY":
             return False
 
         # Volume gate.

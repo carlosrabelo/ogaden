@@ -1,17 +1,17 @@
 # Ogaden
 
-Advanced cryptocurrency trading bot for Binance spot markets with multiple indicators, strategy modes, and comprehensive backtesting capabilities.
+Advanced cryptocurrency trading bot for Binance spot markets with multiple indicators, strategy modes, and built-in safety mechanisms.
 
 ## Highlights
 
-- **Multiple Technical Indicators**: EMA crossover, RSI, Volume analysis, MACD, Bollinger Bands, Stochastic Oscillator
-- **Three Strategy Modes**: Conservative, Balanced, and Aggressive with different risk profiles
-- **Dynamic Risk Management**: ATR-based stop loss and take profit with 2:1 reward ratio
-- **Volume Confirmation**: Volume SMA, Volume Ratio, OBV, and VPT for enhanced signal validation
-- **Comprehensive Backtesting**: Test strategies with detailed metrics including win rate, Sharpe ratio, and max drawdown
-- **Real-time Dashboard**: Live monitoring with strategy comparison and backtesting interface
-- **Sandbox Simulation**: Test strategies safely with simulated fills and 0.1% fee simulation
-- **Professional Architecture**: Modular design with separate components for broker, strategy, and execution
+- EMA crossover, RSI, MACD, Bollinger Bands, Stochastic Oscillator, and volume analysis as coordinated signal sources
+- Three strategy modes (conservative, balanced, aggressive) with enforced risk profiles
+- ATR-based dynamic stop loss and take profit with 2:1 reward ratio
+- Circuit breaker halts trading automatically when drawdown or consecutive loss thresholds are exceeded
+- Price-based trailing stop that rises with price and never falls
+- Volume SMA, Volume Ratio, OBV, and VPT for enhanced signal validation
+- Real-time dashboard via WebSocket with live price chart and trade metrics
+- Sandbox simulation with simulated fills and 0.1% fee emulation
 
 ## Prerequisites
 
@@ -29,16 +29,10 @@ cd ogaden
 make setup
 ```
 
-Install entry points to `~/.local/bin`:
-
-```bash
-make install
-```
-
 ### Docker
 
 ```bash
-make start
+make docker-start
 ```
 
 Builds the engine and dashboard images and starts the full stack with Memcached.
@@ -61,14 +55,6 @@ ogaden-analysis
 
 Fetches current candle data and dumps all indicator values without placing any orders.
 
-### Enhanced example
-
-```bash
-python examples/enhanced_example.py
-```
-
-Demonstrates all enhanced features including multiple indicators, strategy modes, and backtesting.
-
 ### Web Dashboard
 
 ```bash
@@ -77,21 +63,8 @@ make run-dashboard
 
 Starts the dashboard on port **3501** with:
 - **Real-time Trading Data**: Position, signals, balances, P&L
-- **Live Price Chart**: Chart.js com atualizações em tempo real
-- **Clean Interface**: Interface simples e focada
-- **Essential Metrics**: Apenas as informações importantes
-
-### Trading Engine
-
-```bash
-make run-engine
-```
-
-Starts the trading engine (processo separado):
-- **Infinite Loop**: Ciclo contínuo de trading
-- **Strategy Execution**: Executa as estratégias configuradas
-- **State Management**: Compartilha estado via Memcached
-- **Graceful Shutdown**: Desligamento controlado
+- **Live Price Chart**: Chart.js with real-time updates
+- **Essential Metrics**: Circuit breaker status, drawdown, consecutive losses, trade history
 
 ### Docker Stack
 
@@ -101,43 +74,39 @@ make docker-stop     # Stop everything and remove orphans
 make docker-restart  # docker-stop + docker-start
 ```
 
-O Docker stack inclui:
-- **Engine Container**: Processo de trading
-- **Dashboard Container**: Dashboard principal com backtesting
-- **Simple Dashboard Container**: Dashboard minimalista
-- **Metrics Dashboard Container**: Dashboard de métricas avançadas
-- **Memcached**: Compartilhamento de estado entre processos
+The Docker stack includes:
+- **Engine Container**: Trading process
+- **Dashboard Container**: Web interface with chart and real-time metrics
+- **Memcached**: State sharing between processes
 
-Porta padrão:
+Default port:
 - **Dashboard**: `http://localhost:3501`
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Ogaden Trading Bot                       │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌─────────────┐    ┌──────────────────┐    ┌─────────┐  │
-│  │  Trading    │    │                  │    │         │  │
-│  │  Engine     │◄──►│    Memcached     │◄──►│ Dashboard│  │
-│  │  (Python)   │    │   (State Mgmt)   │    │   (Web) │  │
-│  └─────────────┘    └──────────────────┘    └─────────┘  │
-│       │                     │                     │        │
-│       └─────────────────────┼─────────────────────┘        │
-│                             │                              │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
++-------------------------------------------------------------+
+|                    Ogaden Trading Bot                       |
++-------------------------------------------------------------+
+|                                                             |
+|  +-------------+    +------------------+    +---------+    |
+|  |  Trading    |    |                  |    |         |    |
+|  |  Engine     |<-->|    Memcached     |<-->| Dashboard|   |
+|  |  (Python)   |    |   (State Mgmt)   |    |   (Web) |   |
+|  +-------------+    +------------------+    +---------+    |
+|                                                             |
++-------------------------------------------------------------+
 ```
 
-### 2 Processos Separados:
+### 2 Independent Processes
 
-1. **Engine** (`make run-engine`): Processo de trading infinito
-2. **Dashboard** (`make run-dashboard`): Interface web com visualização em tempo real
+1. **Engine** (`make run-engine`): Infinite trading loop
+2. **Dashboard** (`make run-dashboard`): Web interface with real-time visualization
 
-### Comunicação:
-- **Memcached**: Compartilhamento de estado entre engine e dashboard
-- **WebSocket**: Atualizações em tempo real no dashboard
+### Communication
+
+- **Memcached**: State sharing between engine and dashboard
+- **WebSocket**: Real-time updates in the dashboard
 
 > Trading with real funds carries risk. Test with `SANDBOX=true` and small amounts before going live.
 
@@ -169,99 +138,91 @@ The bot uses a comprehensive set of technical indicators:
 ### Strategy Modes
 
 #### Conservative Mode
-- **Requirement**: 3/3 signals must align
+- **Requirement**: 2 confirmations needed
 - **Volume**: Required for confirmation
 - **RSI Thresholds**: 35 (buy) / 65 (sell)
 - **Risk Profile**: Low risk, fewer trades
 
 #### Balanced Mode
-- **Requirement**: 2/3 signals needed
+- **Requirement**: 1 confirmation needed
 - **Volume**: Optional confirmation
 - **RSI Thresholds**: 40 (buy) / 60 (sell)
 - **Risk Profile**: Moderate risk/reward
 
 #### Aggressive Mode
-- **Requirement**: Only 1 signal needed
+- **Requirement**: 1 primary + 1 confirmation signal (RSI or MACD required)
+- **Cooldown**: 2 cycles after loss
+- **Position size**: 25% of balance (hard cap at 30%)
 - **Volume**: Optional confirmation
 - **RSI Thresholds**: 45 (buy) / 55 (sell)
-- **Risk Profile**: Higher risk, more frequent trades
+- **Risk Profile**: Higher frequency, minimum safety enforced
 
 ### Risk Management
 
-- **Dynamic Stop Loss**: ATR-based with 2.0 multiplier
+- **Dynamic Stop Loss**: ATR-based with configurable multiplier (default 2.0)
 - **Take Profit**: 2:1 reward ratio based on ATR
+- **Price-Based Trailing Stop**: `TRAILING_STOP_PCT` sets distance below price peak; stop rises with price and never falls
+- **Circuit Breaker**: Halts buying when rolling drawdown (last 20 trades) exceeds `MAX_DRAWDOWN_PCT` or consecutive losses exceed `MAX_CONSECUTIVE_LOSSES`; persisted across restarts — requires manual reset in `data/state.json`
+- **Cooldown After Loss**: Configurable pause cycles before next buy after a losing trade
+- **Min Trade Margin**: Skips trades where expected move (ATR-based) is below fee threshold
 - **Position Sizing**: Respects Binance filters (MIN_NOTIONAL, STEP_SIZE, MIN_QUANTITY)
-- **Volume Confirmation**: Optional volume spike validation
 
 ## Configuration
 
 Create a `.env` file at the project root:
 
 ```
+# Live credentials (required when SANDBOX=false)
 API_KEY=your_key_here
 API_SECRET=your_secret_here
+
+# SANDBOX=true by default — set to false only for live trading
 SANDBOX=true
-TIMEZONE=America/Cuiaba
+
 BASE_ASSET=BTC
 QUOTE_ASSET=USDT
 INTERVAL=15m
 LIMIT=500
-FAST_EMA=7
-SLOW_EMA=14
-TREND_EMA=50
-RSI_PERIOD=14
-RSI_BUY_THRESHOLD=40
-RSI_SELL_THRESHOLD=60
-PROFIT_THRESHOLD=0.0
-LOSS_THRESHOLD=0.0
-TRAILING_THRESHOLD=0.0
+TIMEZONE=America/Cuiaba
+
+# Strategy mode: conservative | balanced | aggressive
+STRATEGY_MODE=balanced
+
+# Circuit breaker (set to 0 to disable)
+MAX_DRAWDOWN_PCT=15.0
+MAX_CONSECUTIVE_LOSSES=5
+
+# Price-based trailing stop (0 = disabled)
+TRAILING_STOP_PCT=0.0
+
 MEMCACHED_HOST=localhost
 MEMCACHED_PORT=11211
+
+# Sandbox-only initial balances
 BASE_BALANCE=0.0
 QUOTE_BALANCE=10.0
-HTTP_PORT=3502
 ```
 
-Set `SANDBOX=true` to simulate fills without touching the live order book. All thresholds use the quote asset unit.
-
-## Backtesting
-
-The bot includes a comprehensive backtesting engine that evaluates strategy performance on historical data:
-
-### Metrics Calculated
-
-- **Win Rate**: Percentage of profitable trades
-- **Average Profit**: Mean return per trade
-- **Total P&L**: Cumulative profit/loss in currency
-- **Max Drawdown**: Maximum peak-to-trough decline
-- **Sharpe Ratio**: Risk-adjusted return measure
-- **Trade Count**: Number of executed trades
-
-### Running Backtests
-
-Via the web dashboard:
-1. Click strategy buttons to test individual modes
-2. Use "Compare All" to see side-by-side results
-3. View detailed metrics and strategy recommendations
-
-Via command line:
-```bash
-python enhanced_example.py
-```
+See `.env.example` for the full parameter reference including all risk management overrides.
 
 ## Project Layout
 
 ```
-ogaden/          # Python package: engine, analysis, core trading logic, dashboard
-│   ├── broker.py     # Order execution and indicator calculation
-│   ├── strategy.py   # Trading logic and strategy modes
-│   ├── trader.py     # Main trading orchestration
-│   ├── backtest.py   # Backtesting engine and analysis
-│   ├── dashboard.py  # Web interface and API
-│   └── core/         # Core components (errors, loader)
-docker/          # Dockerfiles for engine and dashboard containers
-make/            # Build and install scripts
-tests/           # Test suite
+ogaden/
+├── trader.py       # Trading orchestration and cycle loop
+├── strategy.py     # Strategy modes and indicator-based decisions
+├── broker.py       # Order execution and Binance integration
+├── indicators.py   # Technical indicator calculations
+├── exchange.py     # Exchange protocol abstraction
+├── loader.py       # Configuration from environment variables
+├── persistence.py  # Atomic state save/restore (data/state.json)
+├── dashboard.py    # Flask + WebSocket dashboard server
+├── engine.py       # Entry point for the trading loop
+├── errors.py       # Custom exception types
+├── retry.py        # Exponential backoff decorator
+└── rate_limiter.py # API call throttling
+docker/             # Dockerfiles for engine and dashboard
+tests/              # Test suite (~2.6k lines)
 ```
 
 ## Development
@@ -270,7 +231,6 @@ tests/           # Test suite
 make setup      # Create .venv and install dependencies (first time only)
 make test       # Run all tests
 make quality    # Format, lint, and type-check
-make install    # Install entry points to ~/.local/bin
 ```
 
 ## License

@@ -2,6 +2,7 @@
 
 import pandas as pd
 import pytest
+
 from ogaden.broker import Broker
 
 
@@ -21,9 +22,9 @@ class TestMACD:
 
     def test_histogram_equals_line_minus_signal(self, broker: Broker) -> None:
         broker.calculate_macd()
-        diff = (
-            broker.data["macd_line"] - broker.data["macd_signal"]
-        ) - broker.data["macd_histogram"]
+        diff = (broker.data["macd_line"] - broker.data["macd_signal"]) - broker.data[
+            "macd_histogram"
+        ]
         assert diff.abs().max() < 1e-9
 
     def test_signal_values(self, broker: Broker) -> None:
@@ -87,9 +88,12 @@ class TestATR:
     def test_columns_created(self, broker: Broker) -> None:
         broker.calculate_atr()
         for col in [
-            "tr", "atr",
-            "stop_loss_long", "stop_loss_short",
-            "take_profit_long", "take_profit_short",
+            "tr",
+            "atr",
+            "stop_loss_long",
+            "stop_loss_short",
+            "take_profit_long",
+            "take_profit_short",
         ]:
             assert col in broker.data.columns
 

@@ -1,6 +1,7 @@
 """Tests for core.errors."""
 
 import pytest
+
 from ogaden.errors import ConfigError, FetchError, OgadenError, OrderError
 
 

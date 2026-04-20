@@ -142,12 +142,22 @@
             background: var(--border);
         }
 
-        .grid-mid {
+        .grid-chart-trades {
             display: grid;
-            grid-template-columns: 2fr 1fr;
+            grid-template-columns: 1fr 1fr;
             gap: 12px;
             margin-bottom: 12px;
         }
+
+        .grid-signals-balances {
+            display: grid;
+            grid-template-columns: 3fr 22fr;
+            gap: 12px;
+            margin-bottom: 12px;
+            align-items: start;
+        }
+
+        .balances-col { display: flex; flex-direction: column; }
 
         .grid-bottom {
             display: grid;
@@ -230,7 +240,7 @@
         /* ── Signal card ─────────────────────────────────── */
         .signal-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
+            grid-template-columns: 1fr;
             gap: 6px;
             margin-top: 4px;
         }
@@ -290,10 +300,72 @@
             font-family: var(--mono);
         }
 
+        /* ── Trade History table ────────────────────────── */
+        .card-trade-history {
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-trade-history .card-label { flex-shrink: 0; }
+
+        .trade-table-wrap { overflow-x: auto; overflow-y: auto; margin-top: 4px; flex: 1; }
+
+        .trade-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: var(--mono);
+            font-size: 12px;
+        }
+        .trade-table th {
+            text-align: left;
+            padding: 6px 8px;
+            color: var(--muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-size: 10px;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        .trade-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+            white-space: nowrap;
+        }
+        .trade-table tr:last-child td { border-bottom: none; }
+        .trade-table tr:hover td      { background: rgba(255,255,255,0.02); }
+
+        .trade-pnl-pos { color: var(--green); font-weight: 700; }
+        .trade-pnl-neg { color: var(--red);   font-weight: 700; }
+
+        .reason-badge {
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+        .reason-sl    { background: var(--red-dim);   color: var(--red);    border: 1px solid #5a1e1a; }
+        .reason-tp    { background: var(--green-dim); color: var(--green);  border: 1px solid #1e4d2b; }
+        .reason-trail { background: #2d1f0e;          color: var(--orange); border: 1px solid #5a3a1a; }
+        .reason-sig   { background: var(--blue-dim);  color: var(--blue);   border: 1px solid #2d4a6e; }
+        .reason-thr   { background: #1c2128;          color: var(--muted);  border: 1px solid var(--border); }
+
+        .trade-empty {
+            color: var(--muted);
+            font-size: 12px;
+            padding: 20px 8px;
+            font-family: var(--mono);
+            text-align: center;
+        }
+
         @media (max-width: 900px) {
-            .grid-top    { grid-template-columns: 1fr 1fr; }
-            .grid-mid    { grid-template-columns: 1fr; }
-            .grid-bottom { grid-template-columns: repeat(2, 1fr); }
+            .grid-top              { grid-template-columns: 1fr 1fr; }
+            .grid-chart-trades     { grid-template-columns: 1fr; }
+            .grid-signals-balances { grid-template-columns: 1fr; }
+            .grid-bottom           { grid-template-columns: repeat(2, 1fr); }
         }
 
         @media (max-width: 550px) {
@@ -351,8 +423,8 @@
 
     </div>
 
-    <!-- Row 2: Chart · Signals -->
-    <div class="grid-mid">
+    <!-- Row 2: Price History · Trade History (50/50) -->
+    <div class="grid-chart-trades">
 
         <div class="card card-chart">
             <div class="card-label">Price History</div>
@@ -360,6 +432,33 @@
                 <canvas id="priceChart"></canvas>
             </div>
         </div>
+
+        <div class="card card-trade-history">
+            <div class="card-label">Trade History</div>
+            <div class="trade-table-wrap">
+                <table class="trade-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Exit Time</th>
+                            <th>Entry</th>
+                            <th>Exit</th>
+                            <th>Qty</th>
+                            <th>PnL</th>
+                            <th>Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trade-tbody">
+                        <tr><td colspan="7" class="trade-empty">No trades yet</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Row 3: Signals (30%) · Balances (70%) -->
+    <div class="grid-signals-balances">
 
         <div class="card">
             <div class="card-label">Indicator Signals</div>
@@ -374,75 +473,77 @@
             </div>
         </div>
 
-    </div>
+        <div class="balances-col">
 
-    <!-- Row 3: Balances -->
-    <div class="section-label">Balances</div>
-    <div class="grid-bottom">
+            <div class="section-label">Balances</div>
+            <div class="grid-bottom">
 
-        <div class="card card-balance">
-            <div class="card-label">Base Balance</div>
-            <div class="card-value placeholder" id="base_balance">—</div>
-        </div>
+                <div class="card card-balance">
+                    <div class="card-label">Base Balance</div>
+                    <div class="card-value placeholder" id="base_balance">—</div>
+                </div>
 
-        <div class="card card-balance">
-            <div class="card-label">Quote Balance</div>
-            <div class="card-value placeholder" id="quote_balance">—</div>
-            <div class="card-sub">Available to trade</div>
-        </div>
+                <div class="card card-balance">
+                    <div class="card-label">Quote Balance</div>
+                    <div class="card-value placeholder" id="quote_balance">—</div>
+                    <div class="card-sub">Available to trade</div>
+                </div>
 
-        <div class="card card-balance">
-            <div class="card-label">Total (in Quote)</div>
-            <div class="card-value placeholder" id="base_quote_balance">—</div>
-            <div class="card-sub">Base × price + quote</div>
-        </div>
+                <div class="card card-balance">
+                    <div class="card-label">Total (in Quote)</div>
+                    <div class="card-value placeholder" id="base_quote_balance">—</div>
+                    <div class="card-sub">Base × price + quote</div>
+                </div>
 
-        <div class="card card-balance">
-            <div class="card-label">Expected / Trailing</div>
-            <div class="card-value placeholder" id="expected_balance">—</div>
-            <div class="card-sub" id="trailing_sub"></div>
-        </div>
+                <div class="card card-balance">
+                    <div class="card-label">Expected / Trailing</div>
+                    <div class="card-value placeholder" id="expected_balance">—</div>
+                    <div class="card-sub" id="trailing_sub"></div>
+                </div>
 
-    </div>
+            </div>
 
-    <!-- Row 4: Risk Management Config -->
-    <div class="section-label">Risk Management</div>
-    <div class="grid-bottom">
+            <div class="section-label">Risk Management</div>
+            <div class="grid-bottom">
 
-        <div class="card">
-            <div class="card-label">Position Size</div>
-            <div class="card-value placeholder" id="position_size_pct">—</div>
-            <div class="card-sub">of balance per trade</div>
-        </div>
+                <div class="card">
+                    <div class="card-label">Position Size</div>
+                    <div class="card-value placeholder" id="position_size_pct">—</div>
+                    <div class="card-sub">of balance per trade</div>
+                </div>
 
-        <div class="card">
-            <div class="card-label">Stop-Loss</div>
-            <div class="card-value placeholder" id="stop_loss">—</div>
-            <div class="card-sub">ATR × <span id="atr_stop_mult">—</span></div>
-        </div>
+                <div class="card">
+                    <div class="card-label">Stop-Loss</div>
+                    <div class="card-value placeholder" id="stop_loss">—</div>
+                    <div class="card-sub">ATR × <span id="atr_stop_mult">—</span></div>
+                </div>
 
-        <div class="card">
-            <div class="card-label">Take-Profit</div>
-            <div class="card-value placeholder" id="take_profit">—</div>
-            <div class="card-sub">2:1 reward ratio</div>
-        </div>
+                <div class="card">
+                    <div class="card-label">Take-Profit</div>
+                    <div class="card-value placeholder" id="take_profit">—</div>
+                    <div class="card-sub">2:1 reward ratio</div>
+                </div>
 
-        <div class="card">
-            <div class="card-label">Trend Filter</div>
-            <div class="card-value placeholder" id="trend_ema_value">—</div>
-            <div class="card-sub">EMA(<span id="trend_filter_ema">—</span>)</div>
-        </div>
+                <div class="card">
+                    <div class="card-label">Trend Filter</div>
+                    <div class="card-value placeholder" id="trend_ema_value">—</div>
+                    <div class="card-sub">EMA(<span id="trend_filter_ema">—</span>)</div>
+                </div>
 
-        <div class="card">
-            <div class="card-label">Min Margin</div>
-            <div class="card-value placeholder" id="min_trade_margin_pct">—</div>
-            <div class="card-sub">min expected move</div>
-        </div>
+                <div class="card">
+                    <div class="card-label">Min Margin</div>
+                    <div class="card-value placeholder" id="min_trade_margin_pct">—</div>
+                    <div class="card-sub">min expected move</div>
+                </div>
 
-        <div class="card">
-            <div class="card-label">Cooldown</div>
-            <div class="card-value placeholder" id="cooldown_remaining">—</div>
-            <div class="card-sub" id="cooldown_sub">—</div>
+                <div class="card">
+                    <div class="card-label">Cooldown</div>
+                    <div class="card-value placeholder" id="cooldown_remaining">—</div>
+                    <div class="card-sub" id="cooldown_sub">—</div>
+                </div>
+
+            </div>
+
         </div>
 
     </div>
@@ -465,6 +566,7 @@ const updRow       = document.querySelector('.update-row');
 let lastHeartbeat   = null;
 let lastUpdateEpoch = null;
 let lastChartDate   = null;
+let cycleSleep      = 60;
 
 socket.on('connect', () => {
     connDot.className   = 'dot live';
@@ -529,8 +631,14 @@ function fmt(v, decimals = 2) {
     return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
-function fmtPrice(v) { return fmt(v, 2); }
-function fmtBal(v)   { return fmt(v, 8); }
+function fmtPrice(v) {
+    const n = parseFloat(v);
+    if (isNaN(n)) return v || '—';
+    if (n >= 100) return fmt(v, 2);
+    if (n >= 1)   return fmt(v, 4);
+    return fmt(v, 6);
+}
+function fmtBal(v) { return fmt(v, 6); }
 
 function signClass(str) {
     if (!str) return '';
@@ -606,9 +714,13 @@ socket.on('update', function(data) {
     // Chart
     updateChart(data);
 
+    // Trade history
+    if (data.trade_history) updateTradeHistory(data);
+
     // Timestamp
     const updDot = document.getElementById('upd-dot');
     const updTime = document.getElementById('update_time');
+    if (data.cycle_sleep) cycleSleep = parseInt(data.cycle_sleep, 10) || 60;
     if (data.update_time) {
         updDot.className = 'dot live';
         updTime.textContent = 'Last update: ' + data.update_time;
@@ -620,11 +732,13 @@ socket.on('update', function(data) {
 // ── Staleness ticker ───────────────────────────────────────
 setInterval(() => {
     if (lastUpdateEpoch === null) return;
-    const age = Math.floor((Date.now() - lastUpdateEpoch) / 1000);
+    const age  = Math.floor((Date.now() - lastUpdateEpoch) / 1000);
+    const warn = Math.floor(cycleSleep / 2);
+    const dead = cycleSleep;
     document.getElementById('update_time').textContent = 'Last update: ' + age + 's ago';
-    if      (age > 30) updRow.className = 'update-row stale-dead';
-    else if (age > 10) updRow.className = 'update-row stale-warn';
-    else               updRow.className = 'update-row';
+    if      (age > dead) updRow.className = 'update-row stale-dead';
+    else if (age > warn) updRow.className = 'update-row stale-warn';
+    else                 updRow.className = 'update-row';
 }, 1000);
 
 function setText(id, text, className) {
@@ -671,16 +785,16 @@ function updatePosition(pos, signal, sl, tp) {
     badge.classList.remove('placeholder');
 
     const up = pos.toUpperCase();
-    if (up === 'HOLDING') {
-        badge.textContent = '▲ HOLDING';
+    if (up === 'BUY') {
+        badge.textContent = '▲ BUY';
         badge.style.color = 'var(--green)';
         card.className    = 'card card-position long';
         const parts = [];
         if (sl && sl !== '-') parts.push('SL ' + fmtPrice(sl));
         if (tp && tp !== '-') parts.push('TP ' + fmtPrice(tp));
         sub.textContent = parts.length ? parts.join('  ·  ') : 'ready to sell';
-    } else if (up === 'WAITING') {
-        badge.textContent = '▽ WAITING';
+    } else if (up === 'SELL') {
+        badge.textContent = '▽ SELL';
         badge.style.color = 'var(--muted)';
         card.className    = 'card card-position';
         sub.textContent   = 'ready to buy';
@@ -790,6 +904,49 @@ function updateChart(data) {
     void wrap.offsetWidth; // force reflow so animation restarts
     wrap.classList.add('flash');
     setTimeout(() => wrap.classList.remove('flash'), 400);
+}
+
+function reasonBadge(reason) {
+    const map = {
+        'STOP_LOSS':        ['reason-sl',    'STOP LOSS'],
+        'TRAILING_STOP':    ['reason-trail', 'TRAIL STOP'],
+        'TAKE_PROFIT':      ['reason-tp',    'TAKE PROFIT'],
+        'PROFIT_THRESHOLD': ['reason-thr',   'PROFIT THR'],
+        'LOSS_THRESHOLD':   ['reason-sl',    'LOSS THR'],
+        'TRAILING_BALANCE': ['reason-trail', 'TRAIL BAL'],
+        'SIGNAL':           ['reason-sig',   'SIGNAL'],
+    };
+    const [cls, label] = map[reason] || ['reason-thr', reason];
+    return `<span class="reason-badge ${cls}">${label}</span>`;
+}
+
+function updateTradeHistory(data) {
+    if (!data.trade_history) return;
+    let trades;
+    try { trades = JSON.parse(data.trade_history); } catch (_) { return; }
+    const tbody = document.getElementById('trade-tbody');
+    if (!tbody) return;
+    if (!trades || trades.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="trade-empty">No trades yet</td></tr>';
+        return;
+    }
+    const rows = [...trades].reverse().map((t, i) => {
+        const num     = trades.length - i;
+        const exitTime = t.exit_time ? (t.exit_time.includes('T') ? t.exit_time.split('T')[1] : t.exit_time) : '—';
+        const pnl     = t.pnl_pct != null ? parseFloat(t.pnl_pct) : null;
+        const pnlStr  = pnl != null ? (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '%' : '—';
+        const pnlCls  = pnl != null ? (pnl >= 0 ? 'trade-pnl-pos' : 'trade-pnl-neg') : '';
+        return `<tr>
+            <td style="color:var(--muted)">${num}</td>
+            <td>${exitTime}</td>
+            <td>${fmtPrice(t.entry_price)}</td>
+            <td>${fmtPrice(t.exit_price)}</td>
+            <td>${t.quantity != null ? fmt(t.quantity, 6) : '—'}</td>
+            <td class="${pnlCls}">${pnlStr}</td>
+            <td>${reasonBadge(t.exit_reason || 'SIGNAL')}</td>
+        </tr>`;
+    }).join('');
+    tbody.innerHTML = rows;
 }
 </script>
 </body>

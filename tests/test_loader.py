@@ -1,6 +1,7 @@
 """Tests for core.loader."""
 
 import pytest
+
 from ogaden.errors import ConfigError
 from ogaden.loader import Loader
 

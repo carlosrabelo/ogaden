@@ -118,11 +118,19 @@ class Loader:
             float(os.getenv("LOSS_THRESHOLD", str(loss_default))) * -1.0
         )
         trailing_raw = float(os.getenv("TRAILING_THRESHOLD", "0.0"))
+        trailing_stop_raw = float(os.getenv("TRAILING_STOP_PCT", "0.0"))
 
         self.PROFIT_ENABLE: bool = self.PROFIT_THRESHOLD != 0.0
         self.LOSS_ENABLE: bool = self.LOSS_THRESHOLD != 0.0
         self.TRAILING_ENABLE: bool = trailing_raw != 0.0
         self.TRAILING_THRESHOLD: float = 1.0 - trailing_raw / 100.0
+        self.TRAILING_STOP_PCT: float = trailing_stop_raw
+        self.TRAILING_STOP_ENABLE: bool = trailing_stop_raw > 0.0
+
+        # Circuit breaker: halt trading after excessive drawdown or consecutive losses
+        max_drawdown_raw = float(os.getenv("MAX_DRAWDOWN_PCT", "15.0"))
+        self.MAX_DRAWDOWN_PCT: float = abs(max_drawdown_raw)
+        self.MAX_CONSECUTIVE_LOSSES: int = int(os.getenv("MAX_CONSECUTIVE_LOSSES", "5"))
 
         # Memcached
         self.MEMCACHED_HOST: str = os.getenv("MEMCACHED_HOST", "localhost")
@@ -166,6 +174,13 @@ class Loader:
             raise ConfigError(
                 f"Invalid POSITION_SIZE_PCT: {self.POSITION_SIZE_PCT}. "
                 f"Must be between 1.0 and 100.0."
+            )
+
+        if self.STRATEGY_MODE == "aggressive" and self.POSITION_SIZE_PCT > 30.0:
+            raise ConfigError(
+                f"POSITION_SIZE_PCT cannot exceed 30% in aggressive mode "
+                f"(got {self.POSITION_SIZE_PCT}). "
+                f"Set POSITION_SIZE_PCT explicitly at or below 30.0 to confirm intent."
             )
 
         if self.TREND_FILTER_EMA < 50:

@@ -41,6 +41,7 @@ MEMCACHE_KEYS = [
     "trend_ema_value",
     "price_heartbeat",
     "price_history",
+    "trade_history",
     "cycle_sleep",
 ]
 
@@ -138,7 +139,11 @@ def _poll_memcache(client: base.Client, interval: float) -> None:
                     last_action = action
                     _last_broadcast = data
                     keys = {k for k in data if k != "signal"}
-                    log.debug("Broadcasting update (interval=%.0fs): %s", current_interval, keys)
+                    log.debug(
+                        "Broadcasting update (interval=%.0fs): %s",
+                        current_interval,
+                        keys,
+                    )
                     socketio.emit("update", data, namespace="/")
             consecutive_errors = 0
         except Exception:
