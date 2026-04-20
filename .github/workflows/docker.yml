@@ -40,9 +40,7 @@ jobs:
         with:
           images: ${{ env.IMAGE_PREFIX }}-${{ matrix.service.name }}
           tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
             type=sha
 
       - name: Build and push
