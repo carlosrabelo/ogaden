@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: docker/engine/Dockerfile
+      network: host
       args:
         - SERVICE=engine
     container_name: ogaden-engine
@@ -37,6 +38,7 @@ services:
     build:
       context: .
       dockerfile: docker/dashboard/Dockerfile
+      network: host
       args:
         - SERVICE=dashboard
     container_name: ogaden-dashboard
