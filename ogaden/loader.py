@@ -30,7 +30,7 @@ _VALID_INTERVALS = frozenset(
     }
 )
 
-_VALID_STRATEGY_MODES = frozenset({"conservative", "balanced", "aggressive"})
+_VALID_SIGNALS = frozenset({"EMA", "TREND", "SMA", "RSI", "MACD", "STOCH", "BB", "VOL"})
 
 
 def _validate_timezone(tz_name: str) -> None:
@@ -41,6 +41,20 @@ def _validate_timezone(tz_name: str) -> None:
         ZoneInfo(tz_name)
     except Exception as exc:
         raise ConfigError(f"Invalid TIMEZONE: {tz_name!r}") from exc
+
+
+def _parse_signals(env_var: str, default: str) -> frozenset[str]:
+    raw = os.getenv(env_var, default)
+    if not raw.strip():
+        return frozenset()
+    names = frozenset(s.strip().upper() for s in raw.split(",") if s.strip())
+    invalid = names - _VALID_SIGNALS
+    if invalid:
+        raise ConfigError(
+            f"Invalid signals in {env_var}: {sorted(invalid)}. "
+            f"Valid: {sorted(_VALID_SIGNALS)}"
+        )
+    return names
 
 
 class Loader:
@@ -94,28 +108,16 @@ class Loader:
         self.RSI_BUY_THRESHOLD: int = int(os.getenv("RSI_BUY_THRESHOLD", "40"))
         self.RSI_SELL_THRESHOLD: int = int(os.getenv("RSI_SELL_THRESHOLD", "60"))
 
-        # Strategy
-        self.STRATEGY_MODE: str = os.getenv("STRATEGY_MODE", "balanced")
+        # Signal levels
+        self.LEVEL1_SIGNALS: frozenset[str] = _parse_signals("LEVEL1_SIGNALS", "SMA")
+        self.LEVEL2_SIGNALS: frozenset[str] = _parse_signals("LEVEL2_SIGNALS", "")
+        self.LEVEL3_SIGNALS: frozenset[str] = _parse_signals("LEVEL3_SIGNALS", "")
+        self.LEVEL2_MIN: int = int(os.getenv("LEVEL2_MIN", "1"))
 
-        if self.STRATEGY_MODE not in _VALID_STRATEGY_MODES:
-            raise ConfigError(
-                f"Invalid STRATEGY_MODE: {self.STRATEGY_MODE!r}. "
-                f"Must be one of: {', '.join(sorted(_VALID_STRATEGY_MODES))}"
-            )
-
-        # Load strategy defaults first
-        from ogaden.strategy import StrategyConfig
-
-        strategy_config = StrategyConfig(self.STRATEGY_MODE)
-
-        # Thresholds (use strategy defaults, allow .env override)
-        profit_default = strategy_config.profit_threshold
-        loss_default = strategy_config.loss_threshold
-        self.PROFIT_THRESHOLD: float = float(
-            os.getenv("PROFIT_THRESHOLD", str(profit_default))
-        )
+        # Thresholds
+        self.PROFIT_THRESHOLD: float = float(os.getenv("PROFIT_THRESHOLD", "0.0"))
         self.LOSS_THRESHOLD: float = (
-            float(os.getenv("LOSS_THRESHOLD", str(loss_default))) * -1.0
+            float(os.getenv("LOSS_THRESHOLD", "0.0")) * -1.0
         )
         trailing_raw = float(os.getenv("TRAILING_THRESHOLD", "0.0"))
         trailing_stop_raw = float(os.getenv("TRAILING_STOP_PCT", "0.0"))
@@ -127,7 +129,7 @@ class Loader:
         self.TRAILING_STOP_PCT: float = trailing_stop_raw
         self.TRAILING_STOP_ENABLE: bool = trailing_stop_raw > 0.0
 
-        # Circuit breaker: halt trading after excessive drawdown or consecutive losses
+        # Circuit breaker
         max_drawdown_raw = float(os.getenv("MAX_DRAWDOWN_PCT", "15.0"))
         self.MAX_DRAWDOWN_PCT: float = abs(max_drawdown_raw)
         self.MAX_CONSECUTIVE_LOSSES: int = int(os.getenv("MAX_CONSECUTIVE_LOSSES", "5"))
@@ -139,24 +141,20 @@ class Loader:
         # Persistence
         self.STATE_FILE: Path = Path(os.getenv("STATE_FILE", "data/state.json"))
 
-        # --- Risk Management (mandatory) ---
+        # Risk management
         self.POSITION_SIZE_PCT: float = float(
-            os.getenv("POSITION_SIZE_PCT", str(strategy_config.position_size_pct))
+            os.getenv("POSITION_SIZE_PCT", "25.0")
         )
-        self.TREND_FILTER_EMA: int = int(
-            os.getenv("TREND_FILTER_EMA", str(strategy_config.trend_filter_ema))
-        )
-        self.COOLDOWN_CYCLES: int = int(
-            os.getenv("COOLDOWN_CYCLES", str(strategy_config.cooldown_cycles))
-        )
+        self.TREND_FILTER_EMA: int = int(os.getenv("TREND_FILTER_EMA", "100"))
+        self.COOLDOWN_CYCLES: int = int(os.getenv("COOLDOWN_CYCLES", "5"))
         self.MIN_TRADE_MARGIN_PCT: float = float(
-            os.getenv("MIN_TRADE_MARGIN_PCT", str(strategy_config.min_trade_margin_pct))
+            os.getenv("MIN_TRADE_MARGIN_PCT", "0.3")
         )
         self.ATR_STOP_MULTIPLIER: float = float(
-            os.getenv("ATR_STOP_MULTIPLIER", str(strategy_config.atr_stop_multiplier))
+            os.getenv("ATR_STOP_MULTIPLIER", "2.0")
         )
 
-        # --- Validate configuration ---
+        # --- Validate ---
         if self.INTERVAL not in _VALID_INTERVALS:
             raise ConfigError(
                 f"Invalid INTERVAL: {self.INTERVAL!r}. "
@@ -174,13 +172,6 @@ class Loader:
             raise ConfigError(
                 f"Invalid POSITION_SIZE_PCT: {self.POSITION_SIZE_PCT}. "
                 f"Must be between 1.0 and 100.0."
-            )
-
-        if self.STRATEGY_MODE == "aggressive" and self.POSITION_SIZE_PCT > 30.0:
-            raise ConfigError(
-                f"POSITION_SIZE_PCT cannot exceed 30% in aggressive mode "
-                f"(got {self.POSITION_SIZE_PCT}). "
-                f"Set POSITION_SIZE_PCT explicitly at or below 30.0 to confirm intent."
             )
 
         if self.TREND_FILTER_EMA < 50:
@@ -206,10 +197,24 @@ class Loader:
                 f"Must be >= 1.0 (recommend 2.0)."
             )
 
+        if self.LEVEL2_MIN < 0:
+            raise ConfigError(
+                f"Invalid LEVEL2_MIN: {self.LEVEL2_MIN}. Must be >= 0."
+            )
+
+        if self.LEVEL2_MIN > 0 and not self.LEVEL2_SIGNALS:
+            log.warning(
+                "LEVEL2_MIN=%d has no effect because LEVEL2_SIGNALS is empty",
+                self.LEVEL2_MIN,
+            )
+
         log.info(
-            "Config loaded: %s %s sandbox=%s strategy=%s",
+            "Config loaded: %s %s sandbox=%s L1=%s L2=%s L3=%s min=%d",
             self.SYMBOL,
             self.INTERVAL,
             self.SANDBOX,
-            self.STRATEGY_MODE,
+            sorted(self.LEVEL1_SIGNALS),
+            sorted(self.LEVEL2_SIGNALS),
+            sorted(self.LEVEL3_SIGNALS),
+            self.LEVEL2_MIN,
         )

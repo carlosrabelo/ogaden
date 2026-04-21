@@ -124,7 +124,7 @@ class Trader(Broker):
         # Trend filter value (long-term EMA)
         self.trend_ema_value: float = 0.0
 
-        self.position: str = "SELL"
+        self.position: str = "READY"
         self.last_action: str = "HOLD"
         self.rsi_value: float = 0.0
 
@@ -134,7 +134,7 @@ class Trader(Broker):
         self.metrics = Metrics()
 
         self.strategy: BaseStrategy
-        self.strategy = RuleStrategy(self, mode=self.STRATEGY_MODE)
+        self.strategy = RuleStrategy(self)
 
     # -- Lifecycle -------------------------------------------------------------
 
@@ -235,7 +235,10 @@ class Trader(Broker):
                 log.warning("Memcache reset on symbol change failed: %s", exc)
             return  # Start fresh
 
-        _pos_migrate = {"WAITING": "SELL", "HOLDING": "BUY"}
+        _pos_migrate = {
+            "WAITING": "READY", "HOLDING": "LONG",
+            "SELL": "READY", "FLAT": "READY", "BUY": "LONG",
+        }
         raw_pos = str(state.get("position", self.position))
         self.position = _pos_migrate.get(raw_pos, raw_pos)
         self.purchase_price = float(state.get("purchase_price", 0.0))  # type: ignore[arg-type]
@@ -374,18 +377,7 @@ class Trader(Broker):
             time.sleep(1)
 
     def can_buy(self) -> bool:
-        if self._is_circuit_breaker_active():
-            log.debug("BUY blocked: circuit breaker active")
-            return False
-
-        if self.position != "SELL":
-            return False
-
-        if self.metrics.cycles < self.cooldown_until_cycle:
-            log.debug(
-                "BUY blocked: cooldown active (%d cycles remaining)",
-                self.cooldown_until_cycle - self.metrics.cycles,
-            )
+        if self.position != "READY":
             return False
 
         if self.trend_ema_value > 0 and self.current_price < self.trend_ema_value:
@@ -413,7 +405,7 @@ class Trader(Broker):
         return self.strategy.can_buy()
 
     def can_sell(self) -> bool:
-        if self.position != "BUY":
+        if self.position != "LONG":
             return False
 
         # Forced stop-loss: exit immediately when price hits stop
@@ -478,7 +470,7 @@ class Trader(Broker):
             }
             self._sell_reason = "SIGNAL"
             self.purchase_price = self.current_price
-            self.position = "BUY"
+            self.position = "LONG"
 
             # Set ATR-based stop-loss and take-profit (2:1 reward ratio)
             if not self.data.empty and "atr" in self.data.columns:
@@ -548,21 +540,33 @@ class Trader(Broker):
             self.stop_loss_price = 0.0
             self.take_profit_price = 0.0
             self.trailing_stop_price = 0.0
-            self.position = "SELL"
+            self.position = "READY"
             self.metrics.sells += 1
             self._save_state()
+
+    def _refresh_flat_position(self) -> None:
+        if self.position == "LONG":
+            return
+        if self._is_circuit_breaker_active():
+            self.position = "BLOCKED"
+        elif self.metrics.cycles < self.cooldown_until_cycle:
+            self.position = "COOLDOWN"
+        else:
+            self.position = "READY"
 
     def _update_vars(self) -> None:
         """Recompute derived balances and price differences."""
         self.base_quote_balance = self.base_balance * self.current_price
         self.expected_balance = self.quote_balance + self.base_quote_balance
 
-        if self.position == "SELL":
+        self._refresh_flat_position()
+
+        if self.position != "LONG":
             self.trailing_balance = 0.0
             self.difference_price_v = 0.0
             self.difference_price_p = 0.0
 
-        if self.position == "BUY":
+        if self.position == "LONG":
             trailing = self.expected_balance * self.TRAILING_THRESHOLD
             if trailing > self.trailing_balance:
                 self.trailing_balance = trailing
@@ -679,7 +683,12 @@ class Trader(Broker):
             "interval": self.INTERVAL,
             "position": self.position,
             "action": self.last_action,
-            "strategy": self.STRATEGY_MODE,
+            "strategy": (
+                f"L1:{','.join(sorted(self.LEVEL1_SIGNALS)) or '-'}"
+                f" L2:{','.join(sorted(self.LEVEL2_SIGNALS)) or '-'}"
+                f"(min={self.LEVEL2_MIN})"
+                f" L3:{','.join(sorted(self.LEVEL3_SIGNALS)) or '-'}"
+            ),
             "signal": signal_str,
             "base_balance": f"{self.base_balance:.6f}",
             "quote_balance": f"{self.quote_balance:.2f}",

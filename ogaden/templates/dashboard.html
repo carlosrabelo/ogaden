@@ -149,19 +149,15 @@
             margin-bottom: 12px;
         }
 
-        .grid-signals-balances {
-            display: grid;
-            grid-template-columns: 3fr 22fr;
-            gap: 12px;
-            margin-bottom: 12px;
-            align-items: start;
-        }
-
-        .balances-col { display: flex; flex-direction: column; }
-
         .grid-bottom {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+        }
+
+        .grid-risk {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
             gap: 12px;
         }
 
@@ -217,8 +213,9 @@
 
         /* ── Position card ───────────────────────────────── */
         .card-position { border-left: 3px solid var(--muted); }
-        .card-position.long  { border-left-color: var(--green); }
-        .card-position.short { border-left-color: var(--red); }
+        .card-position.long     { border-left-color: var(--green); }
+        .card-position.cooldown { border-left-color: var(--yellow); }
+        .card-position.blocked  { border-left-color: var(--red); }
 
         .position-badge {
             display: inline-flex;
@@ -240,16 +237,18 @@
         /* ── Signal card ─────────────────────────────────── */
         .signal-grid {
             display: grid;
-            grid-template-columns: 1fr;
+            grid-template-columns: repeat(8, 1fr);
             gap: 6px;
             margin-top: 4px;
         }
 
         .sig-item {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: space-between;
-            padding: 6px 8px;
+            justify-content: center;
+            gap: 5px;
+            padding: 10px 6px;
             border-radius: 4px;
             background: #0d1117;
             border: 1px solid var(--border);
@@ -268,16 +267,16 @@
         .sig-val.sell { color: var(--red); }
         .sig-val.hold { color: var(--muted); }
 
+        .sig-config {
+            margin-top: 10px;
+            font-size: 0.68rem;
+            color: var(--muted);
+            line-height: 1.6;
+            word-break: break-all;
+        }
+
         /* ── Balance cards ───────────────────────────────── */
         .card-balance { border-left: 3px solid var(--border); }
-
-        /* ── Strategy badge ──────────────────────────────── */
-        .strategy-row {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-top: 6px;
-        }
 
         /* ── Last update ─────────────────────────────────── */
         .update-row {
@@ -383,7 +382,6 @@
     <div class="header-meta">
         <span id="hdr-symbol" class="pill pill-blue">—</span>
         <span id="hdr-interval" class="pill pill-muted">—</span>
-        <span id="hdr-strategy" class="pill pill-muted">—</span>
         <span>
             <span class="dot" id="conn-dot"></span>
             <span id="conn-label" style="margin-left:4px">connecting…</span>
@@ -457,93 +455,89 @@
 
     </div>
 
-    <!-- Row 3: Signals (30%) · Balances (70%) -->
-    <div class="grid-signals-balances">
+    <!-- Row 3: Indicator Signals (full width) -->
+    <div class="card" style="margin-bottom:12px">
+        <div class="card-label">Indicator Signals</div>
+        <div class="signal-grid" id="signal-grid">
+            <div class="sig-item"><span class="sig-name">SMA</span><span class="sig-val hold">—</span></div>
+            <div class="sig-item"><span class="sig-name">EMA</span><span class="sig-val hold">—</span></div>
+            <div class="sig-item"><span class="sig-name">TREND</span><span class="sig-val hold">—</span></div>
+            <div class="sig-item"><span class="sig-name">RSI</span><span class="sig-val hold">—</span></div>
+            <div class="sig-item"><span class="sig-name">MACD</span><span class="sig-val hold">—</span></div>
+            <div class="sig-item"><span class="sig-name">STOCH</span><span class="sig-val hold">—</span></div>
+            <div class="sig-item"><span class="sig-name">BB</span><span class="sig-val hold">—</span></div>
+            <div class="sig-item"><span class="sig-name">VOL</span><span class="sig-val hold">—</span></div>
+        </div>
+        <div class="sig-config" id="strategy-config">—</div>
+    </div>
 
-        <div class="card">
-            <div class="card-label">Indicator Signals</div>
-            <div class="signal-grid" id="signal-grid">
-                <div class="sig-item"><span class="sig-name">EMA</span><span class="sig-val hold">—</span></div>
-                <div class="sig-item"><span class="sig-name">RSI</span><span class="sig-val hold">—</span></div>
-                <div class="sig-item"><span class="sig-name">TREND</span><span class="sig-val hold">—</span></div>
-                <div class="sig-item"><span class="sig-name">VOL</span><span class="sig-val hold">—</span></div>
-                <div class="sig-item"><span class="sig-name">MACD</span><span class="sig-val hold">—</span></div>
-                <div class="sig-item"><span class="sig-name">BB</span><span class="sig-val hold">—</span></div>
-                <div class="sig-item"><span class="sig-name">STOCH</span><span class="sig-val hold">—</span></div>
-            </div>
+    <!-- Row 4: Balances (full width) -->
+    <div class="section-label">Balances</div>
+    <div class="grid-bottom" style="margin-bottom:12px">
+
+        <div class="card card-balance">
+            <div class="card-label">Base Balance</div>
+            <div class="card-value placeholder" id="base_balance">—</div>
         </div>
 
-        <div class="balances-col">
+        <div class="card card-balance">
+            <div class="card-label">Quote Balance</div>
+            <div class="card-value placeholder" id="quote_balance">—</div>
+            <div class="card-sub">Available to trade</div>
+        </div>
 
-            <div class="section-label">Balances</div>
-            <div class="grid-bottom">
+        <div class="card card-balance">
+            <div class="card-label">Total (in Quote)</div>
+            <div class="card-value placeholder" id="base_quote_balance">—</div>
+            <div class="card-sub">Base × price + quote</div>
+        </div>
 
-                <div class="card card-balance">
-                    <div class="card-label">Base Balance</div>
-                    <div class="card-value placeholder" id="base_balance">—</div>
-                </div>
+        <div class="card card-balance">
+            <div class="card-label">Expected / Trailing</div>
+            <div class="card-value placeholder" id="expected_balance">—</div>
+            <div class="card-sub" id="trailing_sub"></div>
+        </div>
 
-                <div class="card card-balance">
-                    <div class="card-label">Quote Balance</div>
-                    <div class="card-value placeholder" id="quote_balance">—</div>
-                    <div class="card-sub">Available to trade</div>
-                </div>
+    </div>
 
-                <div class="card card-balance">
-                    <div class="card-label">Total (in Quote)</div>
-                    <div class="card-value placeholder" id="base_quote_balance">—</div>
-                    <div class="card-sub">Base × price + quote</div>
-                </div>
+    <!-- Row 5: Risk Management (full width) -->
+    <div class="section-label">Risk Management</div>
+    <div class="grid-risk" style="margin-bottom:12px">
 
-                <div class="card card-balance">
-                    <div class="card-label">Expected / Trailing</div>
-                    <div class="card-value placeholder" id="expected_balance">—</div>
-                    <div class="card-sub" id="trailing_sub"></div>
-                </div>
+        <div class="card">
+            <div class="card-label">Position Size</div>
+            <div class="card-value placeholder" id="position_size_pct">—</div>
+            <div class="card-sub">of balance per trade</div>
+        </div>
 
-            </div>
+        <div class="card">
+            <div class="card-label">Stop-Loss</div>
+            <div class="card-value placeholder" id="stop_loss">—</div>
+            <div class="card-sub">ATR × <span id="atr_stop_mult">—</span></div>
+        </div>
 
-            <div class="section-label">Risk Management</div>
-            <div class="grid-bottom">
+        <div class="card">
+            <div class="card-label">Take-Profit</div>
+            <div class="card-value placeholder" id="take_profit">—</div>
+            <div class="card-sub">2:1 reward ratio</div>
+        </div>
 
-                <div class="card">
-                    <div class="card-label">Position Size</div>
-                    <div class="card-value placeholder" id="position_size_pct">—</div>
-                    <div class="card-sub">of balance per trade</div>
-                </div>
+        <div class="card">
+            <div class="card-label">Trend Filter</div>
+            <div class="card-value placeholder" id="trend_ema_value">—</div>
+            <div class="card-sub">EMA(<span id="trend_filter_ema">—</span>)</div>
+        </div>
 
-                <div class="card">
-                    <div class="card-label">Stop-Loss</div>
-                    <div class="card-value placeholder" id="stop_loss">—</div>
-                    <div class="card-sub">ATR × <span id="atr_stop_mult">—</span></div>
-                </div>
+        <div class="card">
+            <div class="card-label">Min Margin</div>
+            <div class="card-value placeholder" id="min_trade_margin_pct">—</div>
+            <div class="card-sub">min expected move</div>
+        </div>
 
-                <div class="card">
-                    <div class="card-label">Take-Profit</div>
-                    <div class="card-value placeholder" id="take_profit">—</div>
-                    <div class="card-sub">2:1 reward ratio</div>
-                </div>
-
-                <div class="card">
-                    <div class="card-label">Trend Filter</div>
-                    <div class="card-value placeholder" id="trend_ema_value">—</div>
-                    <div class="card-sub">EMA(<span id="trend_filter_ema">—</span>)</div>
-                </div>
-
-                <div class="card">
-                    <div class="card-label">Min Margin</div>
-                    <div class="card-value placeholder" id="min_trade_margin_pct">—</div>
-                    <div class="card-sub">min expected move</div>
-                </div>
-
-                <div class="card">
-                    <div class="card-label">Cooldown</div>
-                    <div class="card-value placeholder" id="cooldown_remaining">—</div>
-                    <div class="card-sub" id="cooldown_sub">—</div>
-                </div>
-
-            </div>
-
+        <div class="card">
+            <div class="card-label">Cooldown</div>
+            <div class="card-value placeholder" id="cooldown_remaining">—</div>
+            <div class="card-sub" id="cooldown_sub">—</div>
         </div>
 
     </div>
@@ -661,7 +655,7 @@ socket.on('update', function(data) {
     // Header meta
     if (data.symbol)   setText('hdr-symbol',   data.symbol,   'pill pill-blue');
     if (data.interval) setText('hdr-interval',  data.interval, 'pill pill-muted');
-    if (data.strategy) updateStrategy(data.strategy);
+    if (data.strategy) document.getElementById('strategy-config').textContent = data.strategy;
 
     // Price
     const priceEl = document.getElementById('current_price');
@@ -748,17 +742,6 @@ function setText(id, text, className) {
     if (className) el.className = className;
 }
 
-function updateStrategy(strategy) {
-    const el = document.getElementById('hdr-strategy');
-    el.textContent = strategy;
-    const map = {
-        conservative: 'pill pill-blue',
-        balanced:     'pill pill-green',
-        aggressive:   'pill pill-orange',
-    };
-    el.className = map[strategy.toLowerCase()] || 'pill pill-muted';
-}
-
 function updatePnl(val, pct) {
     const card  = document.getElementById('pnl-card');
     const valEl = document.getElementById('difference_price');
@@ -785,19 +768,29 @@ function updatePosition(pos, signal, sl, tp) {
     badge.classList.remove('placeholder');
 
     const up = pos.toUpperCase();
-    if (up === 'BUY') {
-        badge.textContent = '▲ BUY';
+    if (up === 'LONG') {
+        badge.textContent = '▲ LONG';
         badge.style.color = 'var(--green)';
         card.className    = 'card card-position long';
         const parts = [];
         if (sl && sl !== '-') parts.push('SL ' + fmtPrice(sl));
         if (tp && tp !== '-') parts.push('TP ' + fmtPrice(tp));
         sub.textContent = parts.length ? parts.join('  ·  ') : 'ready to sell';
-    } else if (up === 'SELL') {
-        badge.textContent = '▽ SELL';
+    } else if (up === 'READY') {
+        badge.textContent = '▽ READY';
         badge.style.color = 'var(--muted)';
         card.className    = 'card card-position';
         sub.textContent   = 'ready to buy';
+    } else if (up === 'COOLDOWN') {
+        badge.textContent = '~ COOLDOWN';
+        badge.style.color = 'var(--yellow)';
+        card.className    = 'card card-position cooldown';
+        sub.textContent   = 'paused after loss';
+    } else if (up === 'BLOCKED') {
+        badge.textContent = '! BLOCKED';
+        badge.style.color = 'var(--red)';
+        card.className    = 'card card-position blocked';
+        sub.textContent   = 'circuit breaker active';
     } else {
         badge.textContent = pos;
         badge.style.color = 'var(--muted)';
@@ -841,7 +834,7 @@ function updateSignals(signalString) {
     });
 
     // Build items for all known + any extra
-    const KNOWN = ['EMA','RSI','TREND','VOL','MACD','BB','STOCH'];
+    const KNOWN = ['EMA','TREND','SMA','RSI','MACD','STOCH','BB','VOL'];
     const all   = [...new Set([...KNOWN, ...Object.keys(map)])];
 
     grid.innerHTML = all.map(name => {

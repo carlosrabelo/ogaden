@@ -58,6 +58,16 @@ strict = true
 module = "ogaden.indicators"
 disable_error_code = ["attr-defined"]
 
+[[tool.mypy.overrides]]
+module = [
+    "pandas",
+    "ta",
+    "binance.*",
+    "pymemcache.*",
+    "flask_socketio",
+]
+ignore_missing_imports = true
+
 [tool.ruff]
 src = ["."]
 line-length = 88

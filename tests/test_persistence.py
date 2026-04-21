@@ -11,22 +11,22 @@ from ogaden.persistence import load_state, save_state
 class TestSaveState:
     def test_creates_file(self, tmp_path: Path) -> None:
         path = tmp_path / "state.json"
-        save_state({"position": "BUY"}, path)
+        save_state({"position": "LONG"}, path)
         assert path.exists()
 
     def test_content_is_valid_json(self, tmp_path: Path) -> None:
         path = tmp_path / "state.json"
-        state = {"position": "SELL", "purchase_price": 50000.0}
+        state = {"position": "READY", "purchase_price": 50000.0}
         save_state(state, path)
         loaded = json.loads(path.read_text())
         assert loaded == state
 
     def test_overwrites_existing_file(self, tmp_path: Path) -> None:
         path = tmp_path / "state.json"
-        save_state({"position": "BUY"}, path)
-        save_state({"position": "SELL", "purchase_price": 45000.0}, path)
+        save_state({"position": "LONG"}, path)
+        save_state({"position": "READY", "purchase_price": 45000.0}, path)
         loaded = json.loads(path.read_text())
-        assert loaded["position"] == "SELL"
+        assert loaded["position"] == "READY"
 
     def test_atomic_write_no_tmp_left_behind(self, tmp_path: Path) -> None:
         path = tmp_path / "state.json"
@@ -44,7 +44,7 @@ class TestSaveState:
             raise OSError("disk full")
 
         monkeypatch.setattr(Path, "write_text", bad_write)
-        save_state({"position": "BUY"}, path)  # should not raise
+        save_state({"position": "LONG"}, path)  # should not raise
 
 
 class TestLoadState:
@@ -55,13 +55,13 @@ class TestLoadState:
     def test_returns_persisted_data(self, tmp_path: Path) -> None:
         path = tmp_path / "state.json"
         state = {
-            "position": "SELL",
+            "position": "READY",
             "purchase_price": 60000.0,
             "trailing_balance": 1500.0,
         }
         save_state(state, path)
         loaded = load_state(path)
-        assert loaded["position"] == "SELL"
+        assert loaded["position"] == "READY"
         assert loaded["purchase_price"] == pytest.approx(60000.0)
         assert loaded["trailing_balance"] == pytest.approx(1500.0)
 
@@ -85,7 +85,7 @@ class TestLoadState:
     def test_roundtrip_all_fields(self, tmp_path: Path) -> None:
         path = tmp_path / "state.json"
         state: dict[str, object] = {
-            "position": "SELL",
+            "position": "READY",
             "purchase_price": 98765.12345678,
             "trailing_balance": 12000.5,
             "base_balance": 0.00012345,
@@ -113,7 +113,7 @@ class TestTraderStatePersistence:
         # Re-import Loader so STATE_FILE env is picked up
         trader = Trader()
         trader.STATE_FILE = state_file
-        trader.position = "SELL"
+        trader.position = "READY"
         trader.purchase_price = 55000.0
         trader.trailing_balance = 1100.0
         trader._save_state()
@@ -123,7 +123,7 @@ class TestTraderStatePersistence:
         trader2.STATE_FILE = state_file
         trader2._load_state()
 
-        assert trader2.position == "SELL"
+        assert trader2.position == "READY"
         assert trader2.purchase_price == pytest.approx(55000.0)
         assert trader2.trailing_balance == pytest.approx(1100.0)
 
@@ -147,7 +147,7 @@ class TestTraderStatePersistence:
 
         trader = Trader()
         trader.STATE_FILE = state_file
-        trader.position = "SELL"
+        trader.position = "READY"
         trader.metrics.cycles = 42
         trader.metrics.buys = 20
         trader.metrics.sells = 19

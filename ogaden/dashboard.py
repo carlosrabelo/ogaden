@@ -57,7 +57,7 @@ _connection_lock = threading.Lock()
 _connected_count = 0
 
 # Last broadcast payload — re-sent immediately to newly connected clients.
-_last_broadcast: dict = {}
+_last_broadcast: dict[str, str] = {}
 
 
 def _increment_connections() -> int:
@@ -89,7 +89,7 @@ def health() -> dict[str, str]:
     return {"status": "healthy", "service": "ogaden-dashboard"}
 
 
-@socketio.on("connect")
+@socketio.on("connect")  # type: ignore[untyped-decorator]
 def _on_connect() -> None:
     count = _increment_connections()
     log.info("Client connected (total: %d)", count)
@@ -97,28 +97,29 @@ def _on_connect() -> None:
         socketio.emit("update", _last_broadcast, namespace="/")
 
 
-@socketio.on("disconnect")
+@socketio.on("disconnect")  # type: ignore[untyped-decorator]
 def _on_disconnect() -> None:
     count = _decrement_connections()
     log.info("Client disconnected (total: %d)", count)
 
 
 def _poll_memcache(client: base.Client, interval: float) -> None:
-    """Poll Memcached and broadcast only when meaningful data changes.
+    """Poll Memcached and broadcast to the browser at most every cycle_sleep/2.
 
-    Polls at *interval* seconds to detect changes quickly, but only emits a
-    Socket.IO event when price_heartbeat or action has changed — avoiding
-    redundant updates between trading cycles.
+    Emits a Socket.IO event immediately when price_heartbeat or action changes,
+    and also as a time-based keepalive every current_interval seconds so the
+    browser staleness counter resets at half the engine's cycle time.
     """
     global _last_broadcast
     consecutive_errors = 0
     last_heartbeat: str | None = None
     last_action: str | None = None
     current_interval = interval  # fallback until engine reports cycle_sleep
+    last_emit_time = 0.0
 
     while True:
         if not _has_clients():
-            time.sleep(1)  # Check again soon without polling Memcached
+            time.sleep(1)
             continue
 
         try:
@@ -127,22 +128,27 @@ def _poll_memcache(client: base.Client, interval: float) -> None:
                 k: v.decode() if isinstance(v, bytes) else v for k, v in raw.items()
             }
             if data:
-                # Auto-tune poll interval: cycle_sleep / 4 so we catch changes
-                # within a quarter of the engine's sleep window.
+                # Auto-tune emit interval to cycle_sleep / 2 so the browser
+                # staleness counter never exceeds half the engine's sleep window.
                 if cs := data.get("cycle_sleep"):
-                    current_interval = max(5.0, float(cs) / 4)
+                    current_interval = max(5.0, float(cs) / 2)
 
                 heartbeat = data.get("price_heartbeat")
                 action = data.get("action")
-                if heartbeat != last_heartbeat or action != last_action:
+                elapsed = time.monotonic() - last_emit_time
+                if (
+                    heartbeat != last_heartbeat
+                    or action != last_action
+                    or elapsed >= current_interval
+                ):
                     last_heartbeat = heartbeat
                     last_action = action
+                    last_emit_time = time.monotonic()
                     _last_broadcast = data
-                    keys = {k for k in data if k != "signal"}
                     log.debug(
-                        "Broadcasting update (interval=%.0fs): %s",
+                        "Broadcasting update (interval=%.0fs elapsed=%.0fs)",
                         current_interval,
-                        keys,
+                        elapsed,
                     )
                     socketio.emit("update", data, namespace="/")
             consecutive_errors = 0

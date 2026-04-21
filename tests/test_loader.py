@@ -64,11 +64,6 @@ class TestLoaderValidation:
         with pytest.raises(ConfigError, match="Invalid INTERVAL"):
             Loader()
 
-    def test_invalid_strategy_mode(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("STRATEGY_MODE", "ultra_aggressive")
-        with pytest.raises(ConfigError, match="Invalid STRATEGY_MODE"):
-            Loader()
-
     def test_invalid_timezone(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("TIMEZONE", "Mars/Olympus")
         with pytest.raises(ConfigError, match="Invalid TIMEZONE"):
@@ -162,3 +157,46 @@ class TestLoaderThresholds:
         loader = Loader()
         assert loader.TRAILING_ENABLE is True
         assert loader.TRAILING_THRESHOLD == pytest.approx(0.95)
+
+
+class TestSignalLevels:
+    def test_level1_defaults(self) -> None:
+        loader = Loader()
+        assert loader.LEVEL1_SIGNALS == frozenset({"SMA"})
+
+    def test_level2_defaults(self) -> None:
+        loader = Loader()
+        assert loader.LEVEL2_SIGNALS == frozenset()
+
+    def test_level3_defaults_empty(self) -> None:
+        loader = Loader()
+        assert loader.LEVEL3_SIGNALS == frozenset()
+
+    def test_level2_min_default(self) -> None:
+        loader = Loader()
+        assert loader.LEVEL2_MIN == 1
+
+    def test_custom_level1(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("LEVEL1_SIGNALS", "EMA,SMA")
+        loader = Loader()
+        assert loader.LEVEL1_SIGNALS == frozenset({"EMA", "SMA"})
+
+    def test_custom_level3(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("LEVEL3_SIGNALS", "VOL")
+        loader = Loader()
+        assert loader.LEVEL3_SIGNALS == frozenset({"VOL"})
+
+    def test_invalid_signal_name_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("LEVEL1_SIGNALS", "EMA,INVALID")
+        with pytest.raises(ConfigError, match="Invalid signals in LEVEL1_SIGNALS"):
+            Loader()
+
+    def test_empty_level2_accepted(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("LEVEL2_SIGNALS", "")
+        loader = Loader()
+        assert loader.LEVEL2_SIGNALS == frozenset()
+
+    def test_level2_min_negative_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("LEVEL2_MIN", "-1")
+        with pytest.raises(ConfigError, match="LEVEL2_MIN"):
+            Loader()
