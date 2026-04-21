@@ -200,3 +200,57 @@ class TestSignalLevels:
         monkeypatch.setenv("LEVEL2_MIN", "-1")
         with pytest.raises(ConfigError, match="LEVEL2_MIN"):
             Loader()
+
+
+class TestPreset:
+    def test_conservative_applies_values(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PRESET", "conservative")
+        loader = Loader()
+        assert loader.POSITION_SIZE_PCT == 15.0
+        assert loader.TREND_FILTER_EMA == 200
+        assert loader.COOLDOWN_CYCLES == 10
+        assert loader.LEVEL1_SIGNALS == frozenset({"SMA", "EMA"})
+        assert loader.LEVEL2_SIGNALS == frozenset({"RSI", "MACD"})
+        assert loader.LEVEL3_SIGNALS == frozenset({"TREND"})
+
+    def test_aggressive_applies_values(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PRESET", "aggressive")
+        loader = Loader()
+        assert loader.POSITION_SIZE_PCT == 50.0
+        assert loader.COOLDOWN_CYCLES == 2
+        assert loader.MAX_DRAWDOWN_PCT == 25.0
+        assert loader.TREND_FILTER_EMA == 50
+
+    def test_balanced_matches_defaults(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PRESET", "balanced")
+        loader = Loader()
+        assert loader.POSITION_SIZE_PCT == 25.0
+        assert loader.COOLDOWN_CYCLES == 5
+        assert loader.LEVEL1_SIGNALS == frozenset({"SMA"})
+
+    def test_preset_allows_individual_override(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("PRESET", "conservative")
+        monkeypatch.setenv("POSITION_SIZE_PCT", "35.0")
+        loader = Loader()
+        assert loader.POSITION_SIZE_PCT == 35.0
+
+    def test_invalid_preset_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PRESET", "turbo")
+        with pytest.raises(ConfigError, match="Invalid PRESET"):
+            Loader()
+
+    def test_preset_case_insensitive(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("PRESET", "Balanced")
+        loader = Loader()
+        assert loader.PRESET == "BALANCED"
+
+    def test_no_preset_uses_env_vars(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("POSITION_SIZE_PCT", "40.0")
+        loader = Loader()
+        assert loader.POSITION_SIZE_PCT == 40.0
+
+    def test_no_preset_attribute_empty(self) -> None:
+        loader = Loader()
+        assert loader.PRESET == ""

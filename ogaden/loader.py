@@ -43,8 +43,7 @@ def _validate_timezone(tz_name: str) -> None:
         raise ConfigError(f"Invalid TIMEZONE: {tz_name!r}") from exc
 
 
-def _parse_signals(env_var: str, default: str) -> frozenset[str]:
-    raw = os.getenv(env_var, default)
+def _parse_signals(raw: str, env_var: str) -> frozenset[str]:
     if not raw.strip():
         return frozenset()
     names = frozenset(s.strip().upper() for s in raw.split(",") if s.strip())
@@ -57,11 +56,82 @@ def _parse_signals(env_var: str, default: str) -> frozenset[str]:
     return names
 
 
+_PRESETS: dict[str, dict[str, str]] = {
+    "CONSERVATIVE": {
+        "LEVEL1_SIGNALS": "SMA,EMA",
+        "LEVEL2_SIGNALS": "RSI,MACD",
+        "LEVEL3_SIGNALS": "TREND",
+        "LEVEL2_MIN": "1",
+        "PROFIT_THRESHOLD": "1.5",
+        "LOSS_THRESHOLD": "1.0",
+        "TRAILING_THRESHOLD": "0.0",
+        "TRAILING_STOP_PCT": "0.5",
+        "POSITION_SIZE_PCT": "15.0",
+        "TREND_FILTER_EMA": "200",
+        "MIN_TRADE_MARGIN_PCT": "0.5",
+        "ATR_STOP_MULTIPLIER": "2.5",
+        "COOLDOWN_CYCLES": "10",
+        "MAX_DRAWDOWN_PCT": "10.0",
+        "MAX_CONSECUTIVE_LOSSES": "3",
+    },
+    "BALANCED": {
+        "LEVEL1_SIGNALS": "SMA",
+        "LEVEL2_SIGNALS": "",
+        "LEVEL3_SIGNALS": "",
+        "LEVEL2_MIN": "1",
+        "PROFIT_THRESHOLD": "0.0",
+        "LOSS_THRESHOLD": "0.0",
+        "TRAILING_THRESHOLD": "0.0",
+        "TRAILING_STOP_PCT": "0.0",
+        "POSITION_SIZE_PCT": "25.0",
+        "TREND_FILTER_EMA": "100",
+        "MIN_TRADE_MARGIN_PCT": "0.3",
+        "ATR_STOP_MULTIPLIER": "2.0",
+        "COOLDOWN_CYCLES": "5",
+        "MAX_DRAWDOWN_PCT": "15.0",
+        "MAX_CONSECUTIVE_LOSSES": "5",
+    },
+    "AGGRESSIVE": {
+        "LEVEL1_SIGNALS": "SMA",
+        "LEVEL2_SIGNALS": "",
+        "LEVEL3_SIGNALS": "",
+        "LEVEL2_MIN": "1",
+        "PROFIT_THRESHOLD": "0.0",
+        "LOSS_THRESHOLD": "0.0",
+        "TRAILING_THRESHOLD": "0.0",
+        "TRAILING_STOP_PCT": "0.0",
+        "POSITION_SIZE_PCT": "50.0",
+        "TREND_FILTER_EMA": "50",
+        "MIN_TRADE_MARGIN_PCT": "0.1",
+        "ATR_STOP_MULTIPLIER": "1.5",
+        "COOLDOWN_CYCLES": "2",
+        "MAX_DRAWDOWN_PCT": "25.0",
+        "MAX_CONSECUTIVE_LOSSES": "10",
+    },
+}
+
+
 class Loader:
     """Load and validate configuration from environment variables."""
 
+    def _get(self, var: str, default: str = "") -> str:
+        if self._preset is not None:
+            return os.getenv(var, self._preset.get(var, default))
+        return os.getenv(var, default)
+
     def __init__(self) -> None:
         load_dotenv()
+
+        _preset_name = os.getenv("PRESET", "").strip().upper()
+        if _preset_name:
+            if _preset_name not in _PRESETS:
+                raise ConfigError(
+                    f"Invalid PRESET: {_preset_name!r}. Valid: {sorted(_PRESETS)}"
+                )
+            self._preset: dict[str, str] | None = _PRESETS[_preset_name]
+        else:
+            self._preset = None
+        self.PRESET: str = _preset_name
 
         # Exchange
         self.API_KEY: str | None = os.getenv("API_KEY")
@@ -107,40 +177,46 @@ class Loader:
         self.RSI_SELL_THRESHOLD: int = int(os.getenv("RSI_SELL_THRESHOLD", "60"))
 
         # Estratégia — roteamento de sinais por nível
-        self.LEVEL1_SIGNALS: frozenset[str] = _parse_signals("LEVEL1_SIGNALS", "SMA")
-        self.LEVEL2_SIGNALS: frozenset[str] = _parse_signals("LEVEL2_SIGNALS", "")
-        self.LEVEL3_SIGNALS: frozenset[str] = _parse_signals("LEVEL3_SIGNALS", "")
-        self.LEVEL2_MIN: int = int(os.getenv("LEVEL2_MIN", "1"))
+        self.LEVEL1_SIGNALS: frozenset[str] = _parse_signals(
+            self._get("LEVEL1_SIGNALS", "SMA"), "LEVEL1_SIGNALS"
+        )
+        self.LEVEL2_SIGNALS: frozenset[str] = _parse_signals(
+            self._get("LEVEL2_SIGNALS", ""), "LEVEL2_SIGNALS"
+        )
+        self.LEVEL3_SIGNALS: frozenset[str] = _parse_signals(
+            self._get("LEVEL3_SIGNALS", ""), "LEVEL3_SIGNALS"
+        )
+        self.LEVEL2_MIN: int = int(self._get("LEVEL2_MIN", "1"))
 
         # Saída — alvo de lucro e limite de perda fixos
-        self.PROFIT_THRESHOLD: float = float(os.getenv("PROFIT_THRESHOLD", "0.0"))
-        self.LOSS_THRESHOLD: float = float(os.getenv("LOSS_THRESHOLD", "0.0")) * -1.0
+        self.PROFIT_THRESHOLD: float = float(self._get("PROFIT_THRESHOLD", "0.0"))
+        self.LOSS_THRESHOLD: float = float(self._get("LOSS_THRESHOLD", "0.0")) * -1.0
         self.PROFIT_ENABLE: bool = self.PROFIT_THRESHOLD != 0.0
         self.LOSS_ENABLE: bool = self.LOSS_THRESHOLD != 0.0
 
         # Saída — trailing de saldo (% de queda sobre o pico do saldo esperado)
-        _trailing_raw = float(os.getenv("TRAILING_THRESHOLD", "0.0"))
+        _trailing_raw = float(self._get("TRAILING_THRESHOLD", "0.0"))
         self.TRAILING_THRESHOLD: float = 1.0 - _trailing_raw / 100.0
         self.TRAILING_ENABLE: bool = _trailing_raw != 0.0
 
         # Saída — trailing stop de preço (% de queda sobre o preço de pico)
-        self.TRAILING_STOP_PCT: float = float(os.getenv("TRAILING_STOP_PCT", "0.0"))
+        self.TRAILING_STOP_PCT: float = float(self._get("TRAILING_STOP_PCT", "0.0"))
         self.TRAILING_STOP_ENABLE: bool = self.TRAILING_STOP_PCT > 0.0
 
         # Gestão de risco — tamanho de posição e filtros de entrada
-        self.POSITION_SIZE_PCT: float = float(os.getenv("POSITION_SIZE_PCT", "25.0"))
-        self.TREND_FILTER_EMA: int = int(os.getenv("TREND_FILTER_EMA", "100"))
+        self.POSITION_SIZE_PCT: float = float(self._get("POSITION_SIZE_PCT", "25.0"))
+        self.TREND_FILTER_EMA: int = int(self._get("TREND_FILTER_EMA", "100"))
         self.MIN_TRADE_MARGIN_PCT: float = float(
-            os.getenv("MIN_TRADE_MARGIN_PCT", "0.3")
+            self._get("MIN_TRADE_MARGIN_PCT", "0.3")
         )
-        self.ATR_STOP_MULTIPLIER: float = float(os.getenv("ATR_STOP_MULTIPLIER", "2.0"))
+        self.ATR_STOP_MULTIPLIER: float = float(self._get("ATR_STOP_MULTIPLIER", "2.0"))
 
         # Gestão de risco — cooldown após perda
-        self.COOLDOWN_CYCLES: int = int(os.getenv("COOLDOWN_CYCLES", "5"))
+        self.COOLDOWN_CYCLES: int = int(self._get("COOLDOWN_CYCLES", "5"))
 
         # Circuit breaker — pausa permanente por drawdown excessivo
-        self.MAX_DRAWDOWN_PCT: float = abs(float(os.getenv("MAX_DRAWDOWN_PCT", "15.0")))
-        self.MAX_CONSECUTIVE_LOSSES: int = int(os.getenv("MAX_CONSECUTIVE_LOSSES", "5"))
+        self.MAX_DRAWDOWN_PCT: float = abs(float(self._get("MAX_DRAWDOWN_PCT", "15.0")))
+        self.MAX_CONSECUTIVE_LOSSES: int = int(self._get("MAX_CONSECUTIVE_LOSSES", "5"))
 
         # Infraestrutura
         self.MEMCACHED_HOST: str = os.getenv("MEMCACHED_HOST", "localhost")
@@ -200,10 +276,11 @@ class Loader:
             )
 
         log.info(
-            "Config loaded: %s %s sandbox=%s L1=%s L2=%s L3=%s min=%d",
+            "Config loaded: %s %s sandbox=%s preset=%s L1=%s L2=%s L3=%s min=%d",
             self.SYMBOL,
             self.INTERVAL,
             self.SANDBOX,
+            self.PRESET or "none",
             sorted(self.LEVEL1_SIGNALS),
             sorted(self.LEVEL2_SIGNALS),
             sorted(self.LEVEL3_SIGNALS),

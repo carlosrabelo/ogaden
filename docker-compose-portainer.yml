@@ -5,6 +5,7 @@ services:
       - API_KEY=${API_KEY:-}
       - API_SECRET=${API_SECRET:-}
       - SANDBOX=${SANDBOX:-true}
+      - PRESET=${PRESET:-}
       - BASE_ASSET=${BASE_ASSET:-BTC}
       - QUOTE_ASSET=${QUOTE_ASSET:-USDT}
       - INTERVAL=${INTERVAL:-15m}
