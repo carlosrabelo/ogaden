@@ -834,7 +834,7 @@ function updateSignals(signalString) {
     });
 
     // Build items for all known + any extra
-    const KNOWN = ['EMA','TREND','SMA','RSI','MACD','STOCH','BB','VOL'];
+    const KNOWN = ['SMA','EMA','TREND','RSI','MACD','STOCH','BB','VOL'];
     const all   = [...new Set([...KNOWN, ...Object.keys(map)])];
 
     grid.innerHTML = all.map(name => {
