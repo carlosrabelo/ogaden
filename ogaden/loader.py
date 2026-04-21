@@ -77,82 +77,75 @@ class Loader:
                 "API_KEY and API_SECRET are required when SANDBOX is disabled"
             )
 
-        # Assets
+        # Assets e mercado
         self.BASE_ASSET: str = os.getenv("BASE_ASSET", "BTC")
         self.QUOTE_ASSET: str = os.getenv("QUOTE_ASSET", "USDT")
         self.SYMBOL: str = f"{self.BASE_ASSET}{self.QUOTE_ASSET}"
-
-        # Interval
         self.INTERVAL: str = os.getenv("INTERVAL", "15m")
         self.LIMIT: int = int(os.getenv("LIMIT", "500"))
 
         # Display
         self.TIMEZONE: str = os.getenv("TIMEZONE", "America/Cuiaba")
 
-        # Balances
+        # Saldos iniciais (sandbox)
         self.BASE_BALANCE_DEFAULT: float = float(os.getenv("BASE_BALANCE", "0.0"))
         self.QUOTE_BALANCE_DEFAULT: float = float(os.getenv("QUOTE_BALANCE", "10.0"))
 
-        # SMA
+        # Indicadores — SMA
         self.FAST_SMA: int = int(os.getenv("FAST_SMA", "7"))
         self.SLOW_SMA: int = int(os.getenv("SLOW_SMA", "14"))
         self.TREND_SMA: int = int(os.getenv("TREND_SMA", "50"))
 
-        # EMA
+        # Indicadores — EMA
         self.FAST_EMA: int = int(os.getenv("FAST_EMA", "7"))
         self.SLOW_EMA: int = int(os.getenv("SLOW_EMA", "14"))
         self.TREND_EMA: int = int(os.getenv("TREND_EMA", "50"))
 
-        # RSI
+        # Indicadores — RSI
         self.RSI_PERIOD: int = int(os.getenv("RSI_PERIOD", "14"))
         self.RSI_BUY_THRESHOLD: int = int(os.getenv("RSI_BUY_THRESHOLD", "40"))
         self.RSI_SELL_THRESHOLD: int = int(os.getenv("RSI_SELL_THRESHOLD", "60"))
 
-        # Signal levels
+        # Estratégia — roteamento de sinais por nível
         self.LEVEL1_SIGNALS: frozenset[str] = _parse_signals("LEVEL1_SIGNALS", "SMA")
         self.LEVEL2_SIGNALS: frozenset[str] = _parse_signals("LEVEL2_SIGNALS", "")
         self.LEVEL3_SIGNALS: frozenset[str] = _parse_signals("LEVEL3_SIGNALS", "")
         self.LEVEL2_MIN: int = int(os.getenv("LEVEL2_MIN", "1"))
 
-        # Thresholds
+        # Saída — alvo de lucro e limite de perda fixos
         self.PROFIT_THRESHOLD: float = float(os.getenv("PROFIT_THRESHOLD", "0.0"))
-        self.LOSS_THRESHOLD: float = (
-            float(os.getenv("LOSS_THRESHOLD", "0.0")) * -1.0
-        )
-        trailing_raw = float(os.getenv("TRAILING_THRESHOLD", "0.0"))
-        trailing_stop_raw = float(os.getenv("TRAILING_STOP_PCT", "0.0"))
-
+        self.LOSS_THRESHOLD: float = float(os.getenv("LOSS_THRESHOLD", "0.0")) * -1.0
         self.PROFIT_ENABLE: bool = self.PROFIT_THRESHOLD != 0.0
         self.LOSS_ENABLE: bool = self.LOSS_THRESHOLD != 0.0
-        self.TRAILING_ENABLE: bool = trailing_raw != 0.0
-        self.TRAILING_THRESHOLD: float = 1.0 - trailing_raw / 100.0
-        self.TRAILING_STOP_PCT: float = trailing_stop_raw
-        self.TRAILING_STOP_ENABLE: bool = trailing_stop_raw > 0.0
 
-        # Circuit breaker
-        max_drawdown_raw = float(os.getenv("MAX_DRAWDOWN_PCT", "15.0"))
-        self.MAX_DRAWDOWN_PCT: float = abs(max_drawdown_raw)
-        self.MAX_CONSECUTIVE_LOSSES: int = int(os.getenv("MAX_CONSECUTIVE_LOSSES", "5"))
+        # Saída — trailing de saldo (% de queda sobre o pico do saldo esperado)
+        _trailing_raw = float(os.getenv("TRAILING_THRESHOLD", "0.0"))
+        self.TRAILING_THRESHOLD: float = 1.0 - _trailing_raw / 100.0
+        self.TRAILING_ENABLE: bool = _trailing_raw != 0.0
 
-        # Memcached
-        self.MEMCACHED_HOST: str = os.getenv("MEMCACHED_HOST", "localhost")
-        self.MEMCACHED_PORT: int = int(os.getenv("MEMCACHED_PORT", "11211"))
+        # Saída — trailing stop de preço (% de queda sobre o preço de pico)
+        self.TRAILING_STOP_PCT: float = float(os.getenv("TRAILING_STOP_PCT", "0.0"))
+        self.TRAILING_STOP_ENABLE: bool = self.TRAILING_STOP_PCT > 0.0
 
-        # Persistence
-        self.STATE_FILE: Path = Path(os.getenv("STATE_FILE", "data/state.json"))
-
-        # Risk management
-        self.POSITION_SIZE_PCT: float = float(
-            os.getenv("POSITION_SIZE_PCT", "25.0")
-        )
+        # Gestão de risco — tamanho de posição e filtros de entrada
+        self.POSITION_SIZE_PCT: float = float(os.getenv("POSITION_SIZE_PCT", "25.0"))
         self.TREND_FILTER_EMA: int = int(os.getenv("TREND_FILTER_EMA", "100"))
-        self.COOLDOWN_CYCLES: int = int(os.getenv("COOLDOWN_CYCLES", "5"))
         self.MIN_TRADE_MARGIN_PCT: float = float(
             os.getenv("MIN_TRADE_MARGIN_PCT", "0.3")
         )
-        self.ATR_STOP_MULTIPLIER: float = float(
-            os.getenv("ATR_STOP_MULTIPLIER", "2.0")
-        )
+        self.ATR_STOP_MULTIPLIER: float = float(os.getenv("ATR_STOP_MULTIPLIER", "2.0"))
+
+        # Gestão de risco — cooldown após perda
+        self.COOLDOWN_CYCLES: int = int(os.getenv("COOLDOWN_CYCLES", "5"))
+
+        # Circuit breaker — pausa permanente por drawdown excessivo
+        self.MAX_DRAWDOWN_PCT: float = abs(float(os.getenv("MAX_DRAWDOWN_PCT", "15.0")))
+        self.MAX_CONSECUTIVE_LOSSES: int = int(os.getenv("MAX_CONSECUTIVE_LOSSES", "5"))
+
+        # Infraestrutura
+        self.MEMCACHED_HOST: str = os.getenv("MEMCACHED_HOST", "localhost")
+        self.MEMCACHED_PORT: int = int(os.getenv("MEMCACHED_PORT", "11211"))
+        self.STATE_FILE: Path = Path(os.getenv("STATE_FILE", "data/state.json"))
 
         # --- Validate ---
         if self.INTERVAL not in _VALID_INTERVALS:
@@ -198,9 +191,7 @@ class Loader:
             )
 
         if self.LEVEL2_MIN < 0:
-            raise ConfigError(
-                f"Invalid LEVEL2_MIN: {self.LEVEL2_MIN}. Must be >= 0."
-            )
+            raise ConfigError(f"Invalid LEVEL2_MIN: {self.LEVEL2_MIN}. Must be >= 0.")
 
         if self.LEVEL2_MIN > 0 and not self.LEVEL2_SIGNALS:
             log.warning(

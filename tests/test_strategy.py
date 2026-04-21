@@ -172,7 +172,16 @@ class TestSignalString:
     def test_format_contains_all_indicators(self, trader_mock: MagicMock) -> None:
         strategy = RuleStrategy(trader_mock)
         s = strategy.get_signal_string()
-        for prefix in ("SMA:", "EMA:", "TREND:", "RSI:", "MACD:", "STOCH:", "BB:", "VOL:"):  # noqa: E501
+        for prefix in (
+            "SMA:",
+            "EMA:",
+            "TREND:",
+            "RSI:",
+            "MACD:",
+            "STOCH:",
+            "BB:",
+            "VOL:",
+        ):  # noqa: E501
             assert prefix in s
 
     def test_reflects_current_signals(self, trader_mock: MagicMock) -> None:
