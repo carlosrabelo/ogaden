@@ -717,6 +717,7 @@ class Trader(Broker):
             "trailing_stop": _dash_or(self.trailing_stop_price, 2),
             "trend_ema_value": _dash_or(self.trend_ema_value, 2),
             "trade_history": json.dumps(self.metrics.trade_history[-50:]),
+            "pending_trade": json.dumps(self._pending_entry) if self._pending_entry else "",
             "circuit_breaker": "true" if self.circuit_breaker_active else "false",
             "consecutive_losses": str(self.metrics.consecutive_losses),
             "rolling_drawdown": f"{self.metrics.rolling_drawdown:.2f}%",

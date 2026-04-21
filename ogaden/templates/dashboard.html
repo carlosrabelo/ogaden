@@ -919,8 +919,35 @@ function updateTradeHistory(data) {
     try { trades = JSON.parse(data.trade_history); } catch (_) { return; }
     const tbody = document.getElementById('trade-tbody');
     if (!tbody) return;
+
+    let openRow = '';
+    if (data.pending_trade) {
+        try {
+            const pt = JSON.parse(data.pending_trade);
+            if (pt && pt.entry_price) {
+                const currentPrice = parseFloat(data.current_price) || 0;
+                const entryPrice   = parseFloat(pt.entry_price) || 0;
+                const livePnl = entryPrice > 0
+                    ? ((currentPrice - entryPrice) / entryPrice * 100) : null;
+                const pnlStr = livePnl != null
+                    ? (livePnl >= 0 ? '+' : '') + livePnl.toFixed(2) + '%' : '—';
+                const pnlCls = livePnl != null
+                    ? (livePnl >= 0 ? 'trade-pnl-pos' : 'trade-pnl-neg') : '';
+                openRow = `<tr style="opacity:0.8">
+                    <td style="color:var(--muted)">—</td>
+                    <td style="color:var(--muted)">open</td>
+                    <td>${fmtPrice(pt.entry_price)}</td>
+                    <td style="color:var(--blue)">${fmtPrice(data.current_price)}</td>
+                    <td>${pt.quantity != null ? fmt(pt.quantity, 6) : '—'}</td>
+                    <td class="${pnlCls}">${pnlStr}</td>
+                    <td><span class="reason-badge reason-sig" style="background:var(--blue-dim);color:var(--blue);border:1px solid #2d4a6e">OPEN</span></td>
+                </tr>`;
+            }
+        } catch (_) {}
+    }
+
     if (!trades || trades.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="trade-empty">No trades yet</td></tr>';
+        tbody.innerHTML = openRow || '<tr><td colspan="7" class="trade-empty">No trades yet</td></tr>';
         return;
     }
     const rows = [...trades].reverse().map((t, i) => {
@@ -939,7 +966,7 @@ function updateTradeHistory(data) {
             <td>${reasonBadge(t.exit_reason || 'SIGNAL')}</td>
         </tr>`;
     }).join('');
-    tbody.innerHTML = rows;
+    tbody.innerHTML = openRow + rows;
 }
 </script>
 </body>

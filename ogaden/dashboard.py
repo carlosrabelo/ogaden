@@ -42,6 +42,7 @@ MEMCACHE_KEYS = [
     "price_heartbeat",
     "price_history",
     "trade_history",
+    "pending_trade",
     "cycle_sleep",
 ]
 
