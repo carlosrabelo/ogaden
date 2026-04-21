@@ -280,7 +280,7 @@ class Broker(IndicatorMixin, Loader):
             except Exception as exc:
                 raise OrderError(f"Buy order failed for {self.SYMBOL}") from exc
 
-        log.info("BUY %.6f %s @ %.8f", quantity, self.BASE_ASSET, self.current_price)
+        log.warning("BUY %.6f %s @ %.8f", quantity, self.BASE_ASSET, self.current_price)
         return True
 
     def execute_sell(self) -> bool:
@@ -326,7 +326,7 @@ class Broker(IndicatorMixin, Loader):
             except Exception as exc:
                 raise OrderError(f"Sell order failed for {self.SYMBOL}") from exc
 
-        log.info("SELL %.6f %s @ %.8f", quantity, self.BASE_ASSET, self.current_price)
+        log.warning("SELL %.6f %s @ %.8f", quantity, self.BASE_ASSET, self.current_price)
         return True
 
     @staticmethod

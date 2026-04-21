@@ -542,6 +542,44 @@
 
     </div>
 
+    <!-- Row 6: Performance (full width) -->
+    <div class="section-label">Performance</div>
+    <div class="grid-risk" style="margin-bottom:12px">
+
+        <div class="card">
+            <div class="card-label">Total PnL</div>
+            <div class="card-value placeholder" id="total_pnl">—</div>
+            <div class="card-sub">all closed trades</div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Win Rate</div>
+            <div class="card-value placeholder" id="win_rate">—</div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Drawdown (20)</div>
+            <div class="card-value placeholder" id="rolling_drawdown">—</div>
+            <div class="card-sub">last 20 trades</div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Consec. Losses</div>
+            <div class="card-value placeholder" id="consecutive_losses">—</div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Trailing Stop</div>
+            <div class="card-value placeholder" id="trailing_stop">—</div>
+        </div>
+
+        <div class="card">
+            <div class="card-label">Circuit Breaker</div>
+            <div class="card-value placeholder" id="circuit_breaker">—</div>
+        </div>
+
+    </div>
+
     <div class="update-row">
         <span class="dot" id="upd-dot"></span>
         <span id="update_time">Waiting for data…</span>
@@ -705,6 +743,22 @@ socket.on('update', function(data) {
         if (cdSub) cdSub.textContent = cd > 0 ? 'cycles remaining' : 'no cooldown active';
     }
 
+    // Performance metrics
+    setText('total_pnl',         data.total_pnl,         'card-value');
+    setText('win_rate',           data.win_rate,           'card-value');
+    setText('rolling_drawdown',   data.rolling_drawdown,   'card-value');
+    setText('consecutive_losses', data.consecutive_losses, 'card-value');
+    setText('trailing_stop',      data.trailing_stop,      'card-value');
+    if (data.circuit_breaker !== undefined) {
+        const cbEl = document.getElementById('circuit_breaker');
+        if (cbEl) {
+            const active = data.circuit_breaker === 'true';
+            cbEl.textContent = active ? 'ACTIVE' : 'inactive';
+            cbEl.style.color = active ? 'var(--red)' : 'var(--muted)';
+            cbEl.classList.remove('placeholder');
+        }
+    }
+
     // Chart
     updateChart(data);
 
@@ -865,7 +919,7 @@ function updateChart(data) {
         try {
             const pts = JSON.parse(data.price_history);
             pts.forEach(([t, p]) => {
-                priceChart.data.labels.push(t);
+                priceChart.data.labels.push(t.includes(' ') ? t.split(' ')[1] : t);
                 priceChart.data.datasets[0].data.push(p);
             });
             // Mark the current heartbeat as consumed so we don't re-append it.

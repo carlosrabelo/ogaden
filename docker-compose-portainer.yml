@@ -39,6 +39,7 @@ services:
       - MAX_CONSECUTIVE_LOSSES=${MAX_CONSECUTIVE_LOSSES:-5}
       - MEMCACHED_HOST=memcached
       - MEMCACHED_PORT=11211
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - PYTHONUNBUFFERED=1
     depends_on:
       memcached:
@@ -60,6 +61,7 @@ services:
     environment:
       - MEMCACHED_HOST=memcached
       - MEMCACHED_PORT=11211
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - PYTHONUNBUFFERED=1
     depends_on:
       memcached:

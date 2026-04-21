@@ -44,6 +44,12 @@ MEMCACHE_KEYS = [
     "trade_history",
     "pending_trade",
     "cycle_sleep",
+    "trailing_stop",
+    "circuit_breaker",
+    "consecutive_losses",
+    "rolling_drawdown",
+    "win_rate",
+    "total_pnl",
 ]
 
 # Default poll interval: 2 seconds (5x faster than previous 10s).
@@ -132,7 +138,14 @@ def _poll_memcache(client: base.Client, interval: float) -> None:
                 # Auto-tune emit interval to cycle_sleep / 2 so the browser
                 # staleness counter never exceeds half the engine's sleep window.
                 if cs := data.get("cycle_sleep"):
-                    current_interval = max(5.0, float(cs) / 2)
+                    new_interval = max(5.0, float(cs) / 2)
+                    if new_interval != current_interval:
+                        log.info(
+                            "Poll interval auto-tuned to %.1fs (engine cycle_sleep=%ss)",
+                            new_interval,
+                            cs,
+                        )
+                    current_interval = new_interval
 
                 heartbeat = data.get("price_heartbeat")
                 action = data.get("action")
@@ -167,11 +180,14 @@ def _poll_memcache(client: base.Client, interval: float) -> None:
 
 
 def main() -> None:
+    log_level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+    log_level = getattr(logging, log_level_name, logging.INFO)
     logging.basicConfig(
-        level=logging.INFO,
+        level=log_level,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+    log.info("Log level: %s", log_level_name)
 
     load_dotenv()
 
@@ -184,7 +200,7 @@ def main() -> None:
 
     client = base.Client(server=(host, port), key_prefix="ogaden")
     log.info("Memcached: %s:%d", host, port)
-    log.info("Poll interval: %.1fs", poll_interval)
+    log.info("Poll interval: %.1fs (initial — auto-tunes from engine cycle_sleep)", poll_interval)
     log.info("Dashboard: http://localhost:%d", http_port)
 
     threading.Thread(

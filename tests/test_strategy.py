@@ -116,6 +116,15 @@ class TestCanBuy:
         strategy.signal_rsi = "BUY"
         assert strategy.can_buy() is True
 
+    def test_l2_min_ignored_when_l2_signals_empty(
+        self, trader_mock: MagicMock
+    ) -> None:
+        trader_mock.LEVEL2_SIGNALS = frozenset()
+        trader_mock.LEVEL2_MIN = 5
+        strategy = RuleStrategy(trader_mock)
+        strategy.signal_sma = "BUY"
+        assert strategy.can_buy() is True
+
 
 # ---------------------------------------------------------------------------
 # RuleStrategy.can_sell — default config (L1=SMA, no confirmations)

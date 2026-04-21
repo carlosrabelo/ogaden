@@ -3,7 +3,6 @@
 import json
 import logging
 import time
-from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING
 from zoneinfo import ZoneInfo
@@ -15,6 +14,7 @@ from ogaden.broker import Broker
 if TYPE_CHECKING:
     from ogaden.exchange import ExchangeProtocol
 from ogaden.errors import FetchError, OrderError
+from ogaden.metrics import Metrics
 from ogaden.persistence import load_state, save_state
 from ogaden.strategy import BaseStrategy, RuleStrategy
 
@@ -22,8 +22,6 @@ log = logging.getLogger(__name__)
 
 CYCLE_SLEEP = 60
 MEMCACHE_TTL = 120
-PRICE_HISTORY_MAX = 40
-PRICE_HISTORY_TTL = 3600  # 1 hour — survives engine pauses between cycles
 
 
 def _dash_or(value: float, decimals: int) -> str:
@@ -31,63 +29,6 @@ def _dash_or(value: float, decimals: int) -> str:
     if value > 0:
         return f"{value:.{decimals}f}"
     return "-"
-
-
-@dataclass
-class Metrics:
-    """Runtime metrics collected across trading cycles."""
-
-    cycles: int = 0
-    buys: int = 0
-    sells: int = 0
-    fetch_errors: int = 0
-    order_errors: int = 0
-    pnl_history: list[float] = field(default_factory=list)
-    trade_history: list[dict[str, object]] = field(default_factory=list)
-
-    def record_pnl(self, pnl_pct: float) -> None:
-        """Append a closed-trade P&L percentage to history (capped at 1000 entries)."""
-        self.pnl_history.append(round(pnl_pct, 4))
-        if len(self.pnl_history) > 1000:
-            self.pnl_history = self.pnl_history[-1000:]
-
-    def record_trade(self, record: dict[str, object]) -> None:
-        """Append a completed trade record (capped at 200 entries)."""
-        self.trade_history.append(record)
-        if len(self.trade_history) > 200:
-            self.trade_history = self.trade_history[-200:]
-
-    @property
-    def total_pnl(self) -> float:
-        """Sum of all recorded P&L percentages."""
-        return round(sum(self.pnl_history), 4)
-
-    @property
-    def win_rate(self) -> float:
-        """Fraction of profitable trades (0.0 – 1.0); 0.0 if no trades."""
-        if not self.pnl_history:
-            return 0.0
-        wins = sum(1 for p in self.pnl_history if p > 0)
-        return round(wins / len(self.pnl_history), 4)
-
-    @property
-    def rolling_drawdown(self) -> float:
-        """Sum of negative P&L across the last 20 closed trades (always <= 0)."""
-        if not self.pnl_history:
-            return 0.0
-        recent = self.pnl_history[-20:]
-        return round(sum(p for p in recent if p < 0), 4)
-
-    @property
-    def consecutive_losses(self) -> int:
-        """Current streak of consecutive losing trades."""
-        count = 0
-        for p in reversed(self.pnl_history):
-            if p < 0:
-                count += 1
-            else:
-                break
-        return count
 
 
 class Trader(Broker):
@@ -148,7 +89,8 @@ class Trader(Broker):
             self.quote_balance = self.QUOTE_BALANCE_DEFAULT
 
         self._load_state()
-        self.status()
+        self._save_state()
+        self.status(quiet=True)
 
     def _check_memcached(self) -> None:
         """Verify Memcached is reachable or warn and continue."""
@@ -196,6 +138,7 @@ class Trader(Broker):
             "cooldown_until_cycle": self.cooldown_until_cycle,
             "last_trade_pnl": self.last_trade_pnl,
             "circuit_breaker_active": self.circuit_breaker_active,
+            "pending_entry": self._pending_entry,
             "metrics": {
                 "cycles": self.metrics.cycles,
                 "buys": self.metrics.buys,
@@ -204,6 +147,7 @@ class Trader(Broker):
                 "order_errors": self.metrics.order_errors,
                 "pnl_history": self.metrics.pnl_history,
                 "trade_history": self.metrics.trade_history,
+                "price_history": self.metrics.price_history,
             },
         }
         if self.SANDBOX:
@@ -224,16 +168,11 @@ class Trader(Broker):
         saved_symbol = state.get("symbol", "")
         if saved_symbol and saved_symbol != self.SYMBOL:
             log.info(
-                "Symbol changed (%s → %s) — resetting state and chart history",
+                "Symbol changed (%s → %s) — resetting state",
                 saved_symbol,
                 self.SYMBOL,
             )
-            try:
-                self.memcache.delete("price_history")
-                self.memcache.delete("trade_history")
-            except Exception as exc:
-                log.warning("Memcache reset on symbol change failed: %s", exc)
-            return  # Start fresh
+            return  # Start fresh — metrics already reset in __init__
 
         _pos_migrate = {
             "WAITING": "READY",
@@ -257,6 +196,10 @@ class Trader(Broker):
         self.last_trade_pnl = float(state.get("last_trade_pnl", 0.0))  # type: ignore[arg-type]
         self.circuit_breaker_active = bool(state.get("circuit_breaker_active", False))
 
+        pending = state.get("pending_entry", {})
+        if isinstance(pending, dict):
+            self._pending_entry = pending
+
         if self.SANDBOX:
             if "base_balance" in state:
                 self.base_balance = float(state["base_balance"])  # type: ignore[arg-type]
@@ -279,6 +222,12 @@ class Trader(Broker):
             if isinstance(trade_history, list):
                 self.metrics.trade_history = [
                     r for r in trade_history if isinstance(r, dict)
+                ]
+
+            price_history = metrics_state.get("price_history", [])
+            if isinstance(price_history, list):
+                self.metrics.price_history = [
+                    r for r in price_history if isinstance(r, list)
                 ]
 
         log.info(
@@ -364,13 +313,14 @@ class Trader(Broker):
                 self._do_sell()
             else:
                 self.last_action = "HOLD"
-                log.info("HOLD")
+                log.info("HOLD — %s", self._get_hold_reason())
         except OrderError:
             self.metrics.order_errors += 1
             log.exception("Order execution failed")
 
         self._update_vars()
         self.status(quiet=True)
+        self._save_state()
 
         # Sleep with periodic shutdown checks
         for _ in range(CYCLE_SLEEP):
@@ -395,13 +345,12 @@ class Trader(Broker):
             atr = self.data["atr"].iloc[-1]
             if atr > 0 and self.current_price > 0:
                 expected_move_pct = (atr / self.current_price) * 100.0 * 2
-                fee_buffer = 0.2
-                if expected_move_pct < self.MIN_TRADE_MARGIN_PCT + fee_buffer:
+                if expected_move_pct < self.MIN_TRADE_MARGIN_PCT + self.FEE_PCT:
                     log.debug(
                         "BUY blocked: expected move %.3f%% < min %.2f%% + fee %.2f%%",
                         expected_move_pct,
                         self.MIN_TRADE_MARGIN_PCT,
-                        fee_buffer,
+                        self.FEE_PCT,
                     )
                     return False
 
@@ -427,7 +376,7 @@ class Trader(Broker):
             self.trailing_stop_price > 0
             and self.current_price <= self.trailing_stop_price
         ):
-            log.info(
+            log.warning(
                 "TRAILING STOP triggered: %.8f <= %.8f",
                 self.current_price,
                 self.trailing_stop_price,
@@ -437,7 +386,7 @@ class Trader(Broker):
 
         # Forced take-profit: exit when price reaches target
         if self.take_profit_price > 0 and self.current_price >= self.take_profit_price:
-            log.info(
+            log.warning(
                 "TAKE-PROFIT hit: %.2f >= %.2f (profit: %.2f%%)",
                 self.current_price,
                 self.take_profit_price,
@@ -532,7 +481,7 @@ class Trader(Broker):
             # Set cooldown after a losing trade
             if pnl < 0:
                 self.cooldown_until_cycle = self.metrics.cycles + self.COOLDOWN_CYCLES
-                log.info(
+                log.warning(
                     "Loss recorded (%.2f%%) — cooldown for %d cycles",
                     pnl,
                     self.COOLDOWN_CYCLES,
@@ -615,6 +564,26 @@ class Trader(Broker):
             )
         except Exception:
             self.trend_ema_value = 0.0
+
+    def _get_hold_reason(self) -> str:
+        if self.position != "READY":
+            return f"position={self.position}"
+        if self.trend_ema_value > 0 and self.current_price < self.trend_ema_value:
+            return (
+                f"trend_ema={self.trend_ema_value:.4f} > price={self.current_price:.4f}"
+            )
+        if not self.data.empty and "atr" in self.data.columns:
+            atr = float(self.data["atr"].iloc[-1])
+            if atr > 0 and self.current_price > 0:
+                expected_move_pct = (atr / self.current_price) * 100.0 * 2
+                threshold = self.MIN_TRADE_MARGIN_PCT + self.FEE_PCT
+                if expected_move_pct < threshold:
+                    return (
+                        f"atr_margin={expected_move_pct:.3f}%"
+                        f" < {threshold:.2f}%"
+                        f" (atr={atr:.6f})"
+                    )
+        return "no_signal"
 
     def status(self, quiet: bool = False) -> None:
         """Log current state and push snapshot to Memcached."""
@@ -730,29 +699,13 @@ class Trader(Broker):
             "total_pnl": f"{self.metrics.total_pnl:.4f}%",
         }
 
+        if not quiet:
+            self.metrics.record_price(update_time, self.current_price)
+
+        data["price_history"] = json.dumps(self.metrics.price_history)
+
         try:
             self.memcache.set_many(values=data, expire=MEMCACHE_TTL)
             log.debug("Memcache updated (%d keys)", len(data))
         except Exception as exc:
             log.warning("Memcache write failed: %s", exc)
-
-        if not quiet:
-            # Persist chart history so the dashboard can pre-populate on page load.
-            # Written with a longer TTL so it survives brief engine pauses.
-            try:
-                raw = self.memcache.get("price_history")
-                history: list[list[object]] = json.loads(raw) if raw else []
-            except Exception:
-                history = []
-            time_label = (
-                update_time.split(" ")[1] if " " in update_time else update_time
-            )
-            history.append([time_label, round(self.current_price, 2)])
-            if len(history) > PRICE_HISTORY_MAX:
-                history = history[-PRICE_HISTORY_MAX:]
-            try:
-                self.memcache.set(
-                    "price_history", json.dumps(history), expire=PRICE_HISTORY_TTL
-                )
-            except Exception as exc:
-                log.warning("Memcache price_history write failed: %s", exc)

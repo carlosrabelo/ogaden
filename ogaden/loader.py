@@ -78,7 +78,7 @@ _PRESETS: dict[str, dict[str, str]] = {
         "LEVEL1_SIGNALS": "SMA",
         "LEVEL2_SIGNALS": "",
         "LEVEL3_SIGNALS": "",
-        "LEVEL2_MIN": "1",
+        "LEVEL2_MIN": "0",
         "PROFIT_THRESHOLD": "0.0",
         "LOSS_THRESHOLD": "0.0",
         "TRAILING_THRESHOLD": "0.0",
@@ -95,7 +95,7 @@ _PRESETS: dict[str, dict[str, str]] = {
         "LEVEL1_SIGNALS": "SMA",
         "LEVEL2_SIGNALS": "",
         "LEVEL3_SIGNALS": "",
-        "LEVEL2_MIN": "1",
+        "LEVEL2_MIN": "0",
         "PROFIT_THRESHOLD": "0.0",
         "LOSS_THRESHOLD": "0.0",
         "TRAILING_THRESHOLD": "0.0",
@@ -129,8 +129,10 @@ class Loader:
                     f"Invalid PRESET: {_preset_name!r}. Valid: {sorted(_PRESETS)}"
                 )
             self._preset: dict[str, str] | None = _PRESETS[_preset_name]
+            log.info("Preset %r active — defaults overridable by individual env vars", _preset_name)
         else:
             self._preset = None
+            log.info("No preset — using individual env vars and hardcoded defaults")
         self.PRESET: str = _preset_name
 
         # Exchange
@@ -209,6 +211,7 @@ class Loader:
         self.MIN_TRADE_MARGIN_PCT: float = float(
             self._get("MIN_TRADE_MARGIN_PCT", "0.3")
         )
+        self.FEE_PCT: float = float(os.getenv("FEE_PCT", "0.2"))
         self.ATR_STOP_MULTIPLIER: float = float(self._get("ATR_STOP_MULTIPLIER", "2.0"))
 
         # Gestão de risco — cooldown após perda
@@ -266,14 +269,8 @@ class Loader:
                 f"Must be >= 1.0 (recommend 2.0)."
             )
 
-        if self.LEVEL2_MIN < 0:
+        if self.LEVEL2_SIGNALS and self.LEVEL2_MIN < 0:
             raise ConfigError(f"Invalid LEVEL2_MIN: {self.LEVEL2_MIN}. Must be >= 0.")
-
-        if self.LEVEL2_MIN > 0 and not self.LEVEL2_SIGNALS:
-            log.warning(
-                "LEVEL2_MIN=%d has no effect because LEVEL2_SIGNALS is empty",
-                self.LEVEL2_MIN,
-            )
 
         log.info(
             "Config loaded: %s %s sandbox=%s preset=%s L1=%s L2=%s L3=%s min=%d",

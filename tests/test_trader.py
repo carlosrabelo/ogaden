@@ -2,6 +2,7 @@
 
 from unittest.mock import MagicMock, patch
 
+import pandas as pd
 import pytest
 
 from ogaden.trader import Trader
@@ -148,7 +149,10 @@ class TestStatus:
 
 
 class TestLifecycle:
-    def test_setup_initializes_running_false(self, trader: Trader) -> None:
+    def test_setup_initializes_running_false(
+        self, trader: Trader, tmp_path: pytest.TempPathFactory
+    ) -> None:
+        trader.STATE_FILE = tmp_path / "state.json"  # type: ignore[assignment]
         trader.setup()
         assert trader.is_running is False
 
@@ -286,13 +290,51 @@ class TestRiskManagement:
         trader.current_price = 50000.0
         assert trader.can_buy() is False
 
-    def test_can_buy_allowed_above_trend_ema(self, trader: Trader) -> None:
+    def test_can_buy_blocked_by_strategy_when_above_trend_ema(
+        self, trader: Trader
+    ) -> None:
+        # trend filter passes (price > EMA); result is False because strategy has no BUY signal
         trader.position = "READY"
         trader.metrics.cycles = 100
         trader.cooldown_until_cycle = 0
         trader.trend_ema_value = 40000.0
         trader.current_price = 50000.0
         assert trader.can_buy() is False
+
+    # -- ATR margin filter --
+
+    def test_can_buy_blocked_by_low_atr_margin(self, trader: Trader) -> None:
+        # expected_move = (0.001 / 50000) * 100 * 2 = 0.000004% — well below 0.5% threshold
+        trader.position = "READY"
+        trader.current_price = 50000.0
+        trader.MIN_TRADE_MARGIN_PCT = 0.3
+        trader.FEE_PCT = 0.2
+        trader.data = pd.DataFrame({"atr": [0.001]})
+        assert trader.can_buy() is False
+
+    def test_can_buy_allowed_with_sufficient_atr(self, trader: Trader) -> None:
+        # expected_move = (500 / 50000) * 100 * 2 = 2.0% — above 0.5% threshold
+        trader.position = "READY"
+        trader.current_price = 50000.0
+        trader.MIN_TRADE_MARGIN_PCT = 0.3
+        trader.FEE_PCT = 0.2
+        trader.data = pd.DataFrame({"atr": [500.0]})
+        trader.strategy.signal_sma = "BUY"
+        assert trader.can_buy() is True
+
+    def test_can_buy_skips_atr_filter_when_atr_is_zero(self, trader: Trader) -> None:
+        trader.position = "READY"
+        trader.current_price = 50000.0
+        trader.data = pd.DataFrame({"atr": [0.0]})
+        trader.strategy.signal_sma = "BUY"
+        assert trader.can_buy() is True
+
+    def test_can_buy_skips_atr_filter_without_atr_column(self, trader: Trader) -> None:
+        trader.position = "READY"
+        trader.current_price = 50000.0
+        trader.data = pd.DataFrame({"close": [50000.0]})
+        trader.strategy.signal_sma = "BUY"
+        assert trader.can_buy() is True
 
     def test_do_sell_sets_cooldown_on_loss(self, trader: Trader) -> None:
         trader.position = "LONG"

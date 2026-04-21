@@ -197,6 +197,7 @@ class TestSignalLevels:
         assert loader.LEVEL2_SIGNALS == frozenset()
 
     def test_level2_min_negative_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("LEVEL2_SIGNALS", "RSI")
         monkeypatch.setenv("LEVEL2_MIN", "-1")
         with pytest.raises(ConfigError, match="LEVEL2_MIN"):
             Loader()
@@ -212,6 +213,8 @@ class TestPreset:
         assert loader.LEVEL1_SIGNALS == frozenset({"SMA", "EMA"})
         assert loader.LEVEL2_SIGNALS == frozenset({"RSI", "MACD"})
         assert loader.LEVEL3_SIGNALS == frozenset({"TREND"})
+        assert loader.LEVEL2_MIN == 1
+        assert len(loader.LEVEL2_SIGNALS) > 0
 
     def test_aggressive_applies_values(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PRESET", "aggressive")
@@ -220,6 +223,8 @@ class TestPreset:
         assert loader.COOLDOWN_CYCLES == 2
         assert loader.MAX_DRAWDOWN_PCT == 25.0
         assert loader.TREND_FILTER_EMA == 50
+        assert loader.LEVEL2_MIN == 0
+        assert loader.LEVEL2_SIGNALS == frozenset()
 
     def test_balanced_matches_defaults(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("PRESET", "balanced")
@@ -227,6 +232,8 @@ class TestPreset:
         assert loader.POSITION_SIZE_PCT == 25.0
         assert loader.COOLDOWN_CYCLES == 5
         assert loader.LEVEL1_SIGNALS == frozenset({"SMA"})
+        assert loader.LEVEL2_SIGNALS == frozenset()
+        assert loader.LEVEL2_MIN == 0
 
     def test_preset_allows_individual_override(
         self, monkeypatch: pytest.MonkeyPatch
@@ -254,3 +261,15 @@ class TestPreset:
     def test_no_preset_attribute_empty(self) -> None:
         loader = Loader()
         assert loader.PRESET == ""
+
+    def test_presets_with_empty_l2_have_l2_min_zero(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        for preset in ("balanced", "aggressive"):
+            monkeypatch.setenv("PRESET", preset)
+            loader = Loader()
+            if not loader.LEVEL2_SIGNALS:
+                assert loader.LEVEL2_MIN == 0, (
+                    f"{preset}: LEVEL2_MIN={loader.LEVEL2_MIN} but LEVEL2_SIGNALS is empty"
+                )
+            monkeypatch.delenv("PRESET")

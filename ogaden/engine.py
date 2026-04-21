@@ -1,6 +1,7 @@
 """Entry point: infinite trading loop with graceful shutdown."""
 
 import logging
+import os
 import signal
 import sys
 
@@ -25,11 +26,14 @@ def _shutdown(signum: int, _frame: object) -> None:
 def main() -> None:
     global _shutdown_requested, _trader
 
+    log_level_name = os.getenv("LOG_LEVEL", "INFO").upper()
+    log_level = getattr(logging, log_level_name, logging.INFO)
     logging.basicConfig(
-        level=logging.INFO,
+        level=log_level,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+    log.info("Log level: %s", log_level_name)
 
     signal.signal(signal.SIGTERM, _shutdown)
     signal.signal(signal.SIGINT, _shutdown)

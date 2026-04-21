@@ -45,7 +45,7 @@ def load_state(path: Path) -> dict[str, object]:
         return {}
     try:
         data: dict[str, object] = json.loads(path.read_text())
-        log.info("Restored state from %s: %s", path, data)
+        log.debug("Restored state from %s: %s", path, data)
         return data
     except (OSError, json.JSONDecodeError):
         log.warning(
